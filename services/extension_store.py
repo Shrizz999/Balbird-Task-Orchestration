@@ -11,6 +11,7 @@ import io
 import time
 import uuid
 import threading
+import sys
 from datetime import datetime
 from typing import List, Dict
 
@@ -26,7 +27,37 @@ _cache = {
     "timestamp": 0,
 }
 _CACHE_TTL_SECONDS = 15  # Refetch at most every 15 seconds
+# Local overrides to mask Google Sheets 5-minute publish delay
+import os
+import json
 
+if getattr(sys, 'frozen', False):
+    _APP_DIR = os.path.dirname(sys.executable)
+else:
+    _APP_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    
+_OVERRIDES_FILE = os.path.join(_APP_DIR, "extension_overrides.json")
+
+def _load_overrides():
+    try:
+        if os.path.exists(_OVERRIDES_FILE):
+            with open(_OVERRIDES_FILE, "r") as f:
+                data = json.load(f)
+                # Only keep overrides for 10 minutes max
+                now = time.time()
+                return {k: v for k, v in data.items() if now - v.get("_ts", 0) < 600}
+    except Exception:
+        pass
+    return {}
+
+def _save_overrides(overrides):
+    try:
+        with open(_OVERRIDES_FILE, "w") as f:
+            json.dump(overrides, f)
+    except Exception:
+        pass
+
+_local_overrides = _load_overrides()
 
 # ── Read from Google Sheets (published CSV) ──────────────────────────
 
@@ -50,8 +81,11 @@ def _fetch_all_from_sheet() -> List[Dict]:
         for row in reader:
             if not row.get("ID"):
                 continue
-            rows.append({
-                "id": row.get("ID", ""),
+            
+            req_id = row.get("ID", "")
+            
+            row_data = {
+                "id": req_id,
                 "task_id": row.get("Task ID", ""),
                 "task_description": row.get("Task Description", ""),
                 "employee": row.get("Employee", ""),
@@ -64,7 +98,29 @@ def _fetch_all_from_sheet() -> List[Dict]:
                 "manager_note": row.get("Manager Note", ""),
                 "submitted_at": row.get("Submitted At", ""),
                 "decided_at": row.get("Decided At", ""),
-            })
+            }
+            
+            # Apply local optimistic overrides to mask 5-minute Google Sheets delay
+            # Also, if we observe a non-Pending state from the CSV, lock it into overrides
+            # to prevent Google's CDN from bouncing it back to Pending.
+            if row_data["status"] == "Pending" and req_id in _local_overrides:
+                override = _local_overrides[req_id]
+                row_data["status"] = override.get("status", row_data["status"])
+                row_data["manager_deadline"] = override.get("manager_deadline", row_data["manager_deadline"])
+                row_data["manager_note"] = override.get("manager_note", row_data["manager_note"])
+                row_data["decided_at"] = override.get("decided_at", row_data["decided_at"])
+            elif row_data["status"] != "Pending":
+                _local_overrides[req_id] = {
+                    "status": row_data["status"],
+                    "manager_deadline": row_data["manager_deadline"],
+                    "manager_note": row_data["manager_note"],
+                    "decided_at": row_data["decided_at"],
+                    "_ts": time.time(),
+                }
+                _save_overrides(_local_overrides)
+                
+            rows.append(row_data)
+            
         _cache["data"] = rows
         _cache["timestamp"] = now
         return rows
@@ -174,6 +230,17 @@ def decide_request(
     try:
         n8n = _get_n8n_client()
         n8n.submit_extension_decision(payload)
+        
+        # Save optimistic local override
+        _local_overrides[request_id] = {
+            "status": decision,
+            "manager_deadline": manager_deadline,
+            "manager_note": manager_note,
+            "decided_at": payload["decided_at"],
+            "_ts": time.time(),
+        }
+        _save_overrides(_local_overrides)
+        
         _invalidate_cache()
         return True
     except Exception as e:

@@ -5,7 +5,7 @@ from pathlib import Path
 # ==============================================================================
 # CONFIGURATION
 # ==============================================================================
-N8N_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/form/280e1709-fbed-4560-a10c-9f96956654b8"
+N8N_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/form/a06c7116-ac17-432f-9d20-666c183f8f8a"
 N8N_MONTHLY_UPDATES_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/monthly-goals-update"
 N8N_EXTENSION_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/extension-requests"
 

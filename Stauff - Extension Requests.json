@@ -3,16 +3,44 @@
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "extension-requests",
+        "formTitle": "Task & Goal Orchestrator",
+        "formDescription": "Analyze transcripts and assign tasks automatically.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Select Input Type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Daily Goals"
+                  },
+                  {
+                    "option": "Monthly Goals"
+                  },
+                  {
+                    "option": "Daily Transcript"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Paste The JSON",
+              "fieldType": "textarea"
+            }
+          ]
+        },
         "options": {}
       },
-      "id": "ext-trigger-001",
-      "name": "Extension Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [400, 300],
-      "webhookId": "extension-requests-webhook"
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        272,
+        304
+      ],
+      "id": "c3c5711f-e514-419a-ad40-44b9f70a45d0",
+      "name": "On form submission",
+      "webhookId": "a06c7116-ac17-432f-9d20-666c183f8f8a"
     },
     {
       "parameters": {
@@ -20,12 +48,20 @@
           "values": [
             {
               "conditions": {
-                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "submit",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Daily Goals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -33,12 +69,62 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "decide",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Monthly Goals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Daily Transcript",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Live Updates",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -50,8 +136,1436 @@
       },
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
-      "position": [640, 300],
-      "id": "ext-router-001",
+      "position": [
+        576,
+        304
+      ],
+      "id": "2f7400b1-86b7-479f-906e-4e445c910217",
+      "name": "Input Router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nconst DEPT_MAP = {\n  \"Ganesh\": \"PO department\",\n  \"Shreyash\": \"SO department\",\n  \"Shruti\": \"Sales Department\",\n  \"Vaishnavi\": \"Logistics Department\"\n};\n\nfor (const [name, details] of Object.entries(goalsData)) {\n  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n  const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n  const dept = DEPT_MAP[name] || \"Other\";\n  splitItems.push({\n    json: {\n      \"Task ID\": `TSK-${dateStr}-${name.substring(0,3).toUpperCase()}-${shortHash}`,\n      \"Date\": new Date().toLocaleDateString('en-GB'),\n      \"Task Description\": details.goal || details,\n      \"Assigned To\": name,\n      \"Assigned By\": \"Manager\",\n      \"Department\": dept,\n      \"Deadline\": details.deadline || \"\",\n      \"Priority\": details.priority || \"Normal\",\n      \"Status\": \"Pending\",\n      \"Reason\": \"\",\n      \"Source\": \"Daily Goals Input\",\n      \"Updated By\": \"n8n Automation\",\n      \"Last Updated\": new Date().toISOString()\n    }\n  });\n}\nreturn splitItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        0
+      ],
+      "id": "12be753c-c63f-4655-9fd9-55b812e8ed54",
+      "name": "Format Daily Goals"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nfor (const [dept, goal] of Object.entries(goalsData)) {\n  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n  const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n  splitItems.push({\n    json: {\n      \"Goal ID\": `GOAL-${dateStr}-${dept.substring(0,3).toUpperCase()}-${shortHash}`,\n      \"Time Frame\": \"Monthly\",\n      \"Week/Month\": new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),\n      \"Assigned To\": dept,\n      \"Given By\": \"UI Input / Manager\",\n      \"Goal\": goal,\n      \"Deadline\": \"End of Month\",\n      \"Status\": \"Pending\",\n      \"Reason\": \"\",\n      \"Updated By\": \"n8n Automation\",\n      \"Last Updated\": new Date().toISOString()\n    }\n  });\n}\nreturn splitItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        208
+      ],
+      "id": "68055fe1-5fbf-4eec-9f7d-b89e7f771470",
+      "name": "Format Monthly Goals"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1837353468,
+          "mode": "list",
+          "cachedResultName": "Goals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Goal ID": "={{ $json['Goal ID'] }}",
+            "Time Frame": "={{ $json['Time Frame'] }}",
+            "Week/Month": "={{ $json['Week/Month'] }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Given By": "={{ $json['Given By'] }}",
+            "Goal": "={{ $json.Goal.goal }}",
+            "Deadline": "={{ $json.Goal.deadline }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Goal ID"
+          ],
+          "schema": [
+            {
+              "id": "Goal ID",
+              "displayName": "Goal ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Time Frame",
+              "displayName": "Time Frame",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Week/Month",
+              "displayName": "Week/Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Given By",
+              "displayName": "Given By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Goal",
+              "displayName": "Goal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1280,
+        208
+      ],
+      "id": "6032148d-9da2-460c-83aa-5953ed9e9da4",
+      "name": "Upsert Monthly Goals",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1837353468,
+          "mode": "list",
+          "cachedResultName": "Goals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Week/Month",
+              "lookupValue": "={{ $now.setZone('Asia/Kolkata').toFormat('MMMM, yyyy') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1376,
+        512
+      ],
+      "id": "f5605063-a59a-4b66-b976-066fe77ba63a",
+      "name": "Fetch Monthly Context",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawInput = $('On form submission').first().json['Paste The JSON'];\nlet finalTranscript = \"\";\nlet individualUpdates = {};\n\ntry {\n    const parsedData = JSON.parse(rawInput);\n    finalTranscript = parsedData.transcript || \"\";\n    individualUpdates = parsedData.individual_updates || {};\n} catch (e) {\n    finalTranscript = rawInput;\n}\n\nlet dailyContext = [];\nlet monthlyContext = [];\n\ntry {\n    const allTasks = $('Fetch All Tasks Context').all() || [];\n    dailyContext = allTasks.map(item => item.json).filter(item => Object.keys(item).length > 0 && item[\"Task ID\"]);\n} catch(e) {}\n\ntry {\n    const rawMonthly = $('Fetch Monthly Context').all() || [];\n    monthlyContext = rawMonthly.map(item => item.json).filter(item => Object.keys(item).length > 0 && item[\"Goal ID\"]);\n} catch(e) {}\n\nreturn [{ json: { transcript: finalTranscript, individual_updates: individualUpdates, daily_context: dailyContext, monthly_context: monthlyContext } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        512
+      ],
+      "id": "917dfb6b-4f3d-4c2a-8d71-ddafee1636ae",
+      "name": "Prep LLM Payload"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.transcript }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=OUTPUT FORMAT:\nYou MUST output a valid JSON containing two arrays: \"Tasks\" and \"Reports\".\n\nCONTEXT:\nDaily Context (Existing Tasks): {{ JSON.stringify($json.daily_context) }}\nMonthly Goals: {{ JSON.stringify($json.monthly_context) }}\n\n\"Tasks\" Schema:\n{\n  \"Task_ID\": \"[If the task updates an existing task in Daily Context, put its Task ID here. If it's a completely new task, leave this blank]\",\n  \"Task_Description\": \"Single actionable task\",\n  \"Assigned_To\": \"[Name]\",\n  \"Assigned_By\": \"[Name]\",\n  \"Deadline\": \"[Extracted deadline in DD/MM/YYYY format or blank]\",\n  \"Status\": \"[Pending, Completed, Delayed]\",\n  \"Reason\": \"[Reason for delay, else blank]\",\n  \"Source\": \"Meeting Transcript\"\n}\n\n\"Reports\" Schema:\n{\n  \"Name\": \"[Name]\",\n  \"Report\": \"Honest 1-2 sentence heuristic summary of performance.\",\n  \"Rating\": \"Strict score out of 5\"\n}\n\nIMPORTANT:\n- If a deadline is mentioned or can be extracted, ALWAYS output it strictly in DD/MM/YYYY format.\n- Never use any other date format for \"Deadline\".\n- If no deadline is provided or identifiable, leave \"Deadline\" blank.\n- Ensure valid JSON."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1888,
+        512
+      ],
+      "id": "0bf9169e-cc8c-4c38-b272-48208ab1d34b",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "openrouter/free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1888,
+        704
+      ],
+      "id": "b9b9810a-273a-4316-bc7a-0b277fa76fb9",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "f4CDg2qoRRQd4Na9",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.text || \"\";\nlet cleanText = text;\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) { cleanText = cleanText.substring(firstBrace, lastBrace + 1); }\n\nlet parsed = { Tasks: [], Reports: [] };\ntry { parsed = JSON.parse(cleanText); } catch (e) { console.log(\"LLM Parse Error:\", e); }\nconst tasks = parsed.Tasks || [];\n\nconst DEPT_MAP = { \"Ganesh\": \"PO department\", \"Shreyash\": \"SO department\", \"Shruti\": \"Sales Department\", \"Vaishnavi\": \"Logistics Department\" };\n\nreturn tasks.map(t => {\n    const safeName = (t.Assigned_To || \"UNK\").substring(0,3).toUpperCase();\n    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n    const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n    const taskId = (t.Task_ID && t.Task_ID.trim() !== \"\") ? t.Task_ID : `TSK-${dateStr}-${safeName}-${shortHash}`;\n    const dept = DEPT_MAP[t.Assigned_To] || \"Other\";\n    return { json: { \"Task ID\": taskId, \"Date\": new Date().toLocaleDateString('en-GB'), \"Task Description\": t.Task_Description || \"-\", \"Assigned To\": t.Assigned_To || \"-\", \"Assigned By\": t.Assigned_By || \"-\", \"Department\": dept, \"Deadline\": t.Deadline || \"\", \"Priority\": \"Normal\", \"Status\": t.Status || \"Pending\", \"Reason\": t.Reason || \"\", \"Source\": t.Source || \"Meeting Transcript\", \"Updated By\": \"n8n Automation\", \"Last Updated\": new Date().toISOString() } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        400
+      ],
+      "id": "2fb82c52-80c4-4393-acc5-9c6cec8823e4",
+      "name": "Extract & Map Tasks"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.text || \"\";\nlet cleanText = text;\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) { cleanText = cleanText.substring(firstBrace, lastBrace + 1); }\nlet parsed = { Tasks: [], Reports: [] };\ntry { parsed = JSON.parse(cleanText); } catch (e) { console.log(\"LLM Parse Error:\", e); }\nreturn (parsed.Reports || []).map(r => { r.Date = new Date().toLocaleDateString('en-GB'); return { json: r }; });"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        704
+      ],
+      "id": "7c833505-4632-48e7-b779-9572174e6cc7",
+      "name": "Extract Reports"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Stauff Task Orch",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1931533029,
+          "mode": "list",
+          "cachedResultName": "Tasks",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1931533029"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $json['Task ID'] }}",
+            "Date": "={{ $json['Task Description'][0].date }}",
+            "Task Description": "={{ $json['Task Description'][0].goal }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Assigned By": "={{ $json['Assigned By'] }}",
+            "Department": "={{ $json.Department }}",
+            "Deadline": "={{ $json['Task Description'][0].deadline }}",
+            "Priority": "={{ $json.Priority }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Source": "={{ $json.Source }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Task ID"
+          ],
+          "schema": [
+            {
+              "id": "Task ID",
+              "displayName": "Task ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task Description",
+              "displayName": "Task Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned By",
+              "displayName": "Assigned By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Priority",
+              "displayName": "Priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1280,
+        0
+      ],
+      "id": "cecf28db-25cf-4043-9231-587faef94aa5",
+      "name": "Upsert Tasks (Daily Goals)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1931533029,
+          "mode": "list",
+          "cachedResultName": "Tasks",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1931533029"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $json['Task ID'] }}",
+            "Date": "={{ $json.Date }}",
+            "Task Description": "={{ $json['Task Description'] }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Assigned By": "={{ $json['Assigned By'] }}",
+            "Department": "={{ $json.Department }}",
+            "Deadline": "={{ $json.Deadline }}",
+            "Priority": "={{ $json.Priority }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Source": "={{ $json.Source }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Task ID"
+          ],
+          "schema": [
+            {
+              "id": "Task ID",
+              "displayName": "Task ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task Description",
+              "displayName": "Task Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned By",
+              "displayName": "Assigned By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Priority",
+              "displayName": "Priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2416,
+        400
+      ],
+      "id": "e3a6e579-3a53-4705-a73d-fd7e2d76a3af",
+      "name": "Upsert Tasks (Transcript)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1931533029,
+          "mode": "list",
+          "cachedResultName": "Tasks",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1931533029"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $json['Task ID'] }}",
+            "Date": "={{ $json.Date }}",
+            "Task Description": "={{ $json['Task Description'] }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Assigned By": "={{ $json['Assigned By'] }}",
+            "Department": "={{ $json.Department }}",
+            "Deadline": "={{ $json.Deadline }}",
+            "Priority": "={{ $json.Priority }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Source": "={{ $json.Source }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Task ID"
+          ],
+          "schema": [
+            {
+              "id": "Task ID",
+              "displayName": "Task ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task Description",
+              "displayName": "Task Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned By",
+              "displayName": "Assigned By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Priority",
+              "displayName": "Priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1280,
+        672
+      ],
+      "id": "3dbf7edf-24d9-465c-bb7a-1a8e8a6bdc78",
+      "name": "Upsert Tasks (Live Updates)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Boss",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.Date }}",
+            "Report": "={{ $json.Report }}",
+            "Name": "={{ $json.Name }}",
+            "Rating": "={{ $json.Rating }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Report",
+              "displayName": "Report",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rating",
+              "displayName": "Rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2784,
+        912
+      ],
+      "id": "c4c1ae47-dbbf-4551-a194-72b6a0f33e81",
+      "name": "Append Boss",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst uiUpdates = payload.individual_updates || []; \nconst DEPT_MAP = { \"Ganesh\": \"PO department\", \"Shreyash\": \"SO department\", \"Shruti\": \"Sales Department\", \"Vaishnavi\": \"Logistics Department\" };\n\nconst splitItems = uiUpdates.map(task => {\n  const dept = DEPT_MAP[task[\"Assigned To\"]] || \"Other\";\n  return { json: { \"Goal ID\": task[\"Task ID\"], \"Task ID\": task[\"Task ID\"], \"Date\": task[\"Date\"], \"Task Description\": task[\"Task Description\"], \"Goal\": task[\"Task Description\"], \"Assigned To\": task[\"Assigned To\"], \"Assigned By\": task[\"Assigned By\"], \"Given By\": task[\"Assigned By\"], \"Department\": dept, \"Deadline\": task[\"Deadline\"], \"Priority\": task[\"Priority\"] || \"Normal\", \"Status\": task[\"Status\"], \"Reason\": task[\"Reason\"] || \"\", \"Source\": task[\"Source\"], \"Updated By\": \"UI Input\", \"Last Updated\": new Date().toISOString() } };\n});\nreturn splitItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        672
+      ],
+      "id": "94b30e0b-1cbb-4647-98ec-0d23ef37e01f",
+      "name": "Format Live Updates"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1837353468,
+          "mode": "list",
+          "cachedResultName": "Goals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Goal ID": "={{ $json['Task ID'] }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Goal": "={{ $json['Task Description'] }}",
+            "Deadline": "={{ $json.Deadline }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}",
+            "Week/Month": "={{ $json.Date }}",
+            "Given By": "={{ $json['Given By'] }}",
+            "Time Frame": "Monthly"
+          },
+          "matchingColumns": [
+            "Goal ID"
+          ],
+          "schema": [
+            {
+              "id": "Goal ID",
+              "displayName": "Goal ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Time Frame",
+              "displayName": "Time Frame",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Week/Month",
+              "displayName": "Week/Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Given By",
+              "displayName": "Given By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Goal",
+              "displayName": "Goal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1280,
+        816
+      ],
+      "id": "bfe3ec4b-2d47-40f0-a7aa-b0e3f3544a98",
+      "name": "Upsert Goals from Updates",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1931533029,
+          "mode": "list",
+          "cachedResultName": "Tasks",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1931533029"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Date",
+              "lookupValue": "={{ $now.setZone('Asia/Kolkata').toFormat('dd/MM/yyyy') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1184,
+        512
+      ],
+      "id": "9a6b3baf-76c7-4270-9409-6831b1d6cae8",
+      "name": "Fetch All Tasks Context",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e44590a8-752f-47b7-be58-0a1bb7a3f186",
+              "leftValue": "={{ $json.Name }}",
+              "rightValue": "Balraj Waghmare",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2384,
+        704
+      ],
+      "id": "5fa361b8-5369-4635-9edf-d980b5b1392f",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "monthly-goals-update",
+        "options": {}
+      },
+      "id": "f05bf160-c0f8-47d6-822b-996c420cf428",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        2704,
+        576
+      ],
+      "webhookId": "22bae45d-1205-49c5-a5dc-0aa13332be5e"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json.body || $input.first().json;\nconst uiUpdates = payload.individual_updates || [];\nconst splitItems = [];\nfor (const task of uiUpdates) {\n  splitItems.push({ json: { \"Goal ID\": task[\"Task ID\"], \"Assigned To\": task[\"Assigned To\"], \"Task Description\": task[\"Task Description\"], \"Deadline\": task[\"Deadline\"], \"Status\": task[\"Status\"], \"Reason\": task[\"Reason\"] || \"\", \"Updated By\": \"UI Input\", \"Last Updated\": new Date().toISOString() } });\n}\nreturn splitItems;"
+      },
+      "id": "5a77a34a-517a-4299-bf2e-063d930adec3",
+      "name": "Format Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2928,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Stauff Task Orch",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1837353468,
+          "mode": "list",
+          "cachedResultName": "Goals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Goal ID": "={{ $json['Goal ID'] }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Deadline": "={{ $json.Deadline }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Goal ID"
+          ],
+          "schema": [
+            {
+              "id": "Goal ID",
+              "displayName": "Goal ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Time Frame",
+              "displayName": "Time Frame",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Week/Month",
+              "displayName": "Week/Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Given By",
+              "displayName": "Given By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Goal",
+              "displayName": "Goal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "f28f315e-99e3-4ac0-b3f2-21736398008e",
+      "name": "Update Goals Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3152,
+        576
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "extension-requests",
+        "options": {}
+      },
+      "id": "1389e0e4-fd17-42b2-a22b-e1b225724ccb",
+      "name": "Extension Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        2064,
+        96
+      ],
+      "webhookId": "extension-requests-webhook"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action || ($json.body && $json.body.action) || '' }}",
+                    "rightValue": "submit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action || ($json.body && $json.body.action) || '' }}",
+                    "rightValue": "decide",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2304,
+        96
+      ],
+      "id": "c45f9657-495a-464e-a430-054a0ea5911d",
       "name": "Action Router"
     },
     {
@@ -60,15 +1574,30 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 200],
-      "id": "ext-format-submit-001",
+      "position": [
+        2544,
+        -16
+      ],
+      "id": "cc1f6388-e3fd-4609-9f9d-a8634d5b85dc",
       "name": "Format New Request"
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": { "__rl": true, "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4", "mode": "list", "cachedResultName": "Copy of BalPigeon", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk" },
-        "sheetName": { "__rl": true, "value": 1895469142, "mode": "list", "cachedResultName": "Extensions", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1895469142" },
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1895469142,
+          "mode": "list",
+          "cachedResultName": "Extensions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1895469142"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -88,19 +1617,123 @@
           },
           "matchingColumns": [],
           "schema": [
-            { "id": "ID", "displayName": "ID", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Task ID", "displayName": "Task ID", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Task Description", "displayName": "Task Description", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Employee", "displayName": "Employee", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Department", "displayName": "Department", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Current Deadline", "displayName": "Current Deadline", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Requested Deadline", "displayName": "Requested Deadline", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Reason", "displayName": "Reason", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Manager Deadline", "displayName": "Manager Deadline", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Manager Note", "displayName": "Manager Note", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Submitted At", "displayName": "Submitted At", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Decided At", "displayName": "Decided At", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task ID",
+              "displayName": "Task ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task Description",
+              "displayName": "Task Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Employee",
+              "displayName": "Employee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Deadline",
+              "displayName": "Current Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Requested Deadline",
+              "displayName": "Requested Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Manager Deadline",
+              "displayName": "Manager Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Manager Note",
+              "displayName": "Manager Note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Submitted At",
+              "displayName": "Submitted At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Decided At",
+              "displayName": "Decided At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
           ],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
@@ -109,10 +1742,18 @@
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
-      "position": [1120, 200],
-      "id": "ext-append-001",
+      "position": [
+        2784,
+        -16
+      ],
+      "id": "99352bd0-4391-4b1c-b8de-b550af69476c",
       "name": "Append Extension Request",
-      "credentials": { "googleSheetsOAuth2Api": { "id": "e1MbcUzueWdnMKx5", "name": "Google Sheets account" } }
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
     },
     {
       "parameters": {
@@ -120,15 +1761,30 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 400],
-      "id": "ext-format-decide-001",
+      "position": [
+        2544,
+        192
+      ],
+      "id": "9d5ea0b6-c4fc-4611-b585-39c690837fdb",
       "name": "Format Decision"
     },
     {
       "parameters": {
         "operation": "appendOrUpdate",
-        "documentId": { "__rl": true, "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4", "mode": "list", "cachedResultName": "Copy of BalPigeon", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk" },
-        "sheetName": { "__rl": true, "value": 1895469142, "mode": "list", "cachedResultName": "Extensions", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1895469142" },
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1895469142,
+          "mode": "list",
+          "cachedResultName": "Extensions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1895469142"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -138,13 +1794,128 @@
             "Manager Note": "={{ $json['Manager Note'] }}",
             "Decided At": "={{ $json['Decided At'] }}"
           },
-          "matchingColumns": ["ID"],
+          "matchingColumns": [
+            "ID"
+          ],
           "schema": [
-            { "id": "ID", "displayName": "ID", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true, "removed": false },
-            { "id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Manager Deadline", "displayName": "Manager Deadline", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Manager Note", "displayName": "Manager Note", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
-            { "id": "Decided At", "displayName": "Decided At", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Task ID",
+              "displayName": "Task ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task Description",
+              "displayName": "Task Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Employee",
+              "displayName": "Employee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Deadline",
+              "displayName": "Current Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Requested Deadline",
+              "displayName": "Requested Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Manager Deadline",
+              "displayName": "Manager Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Manager Note",
+              "displayName": "Manager Note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Submitted At",
+              "displayName": "Submitted At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Decided At",
+              "displayName": "Decided At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
           ],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
@@ -153,26 +1924,338 @@
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
-      "position": [1120, 400],
-      "id": "ext-update-001",
+      "position": [
+        2784,
+        192
+      ],
+      "id": "a766d3d1-1ff0-43ce-b741-62ffa658742f",
       "name": "Update Extension Decision",
-      "credentials": { "googleSheetsOAuth2Api": { "id": "e1MbcUzueWdnMKx5", "name": "Google Sheets account" } }
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
     }
   ],
-  "pinData": {},
+  "pinData": {
+    "On form submission": [
+      {
+        "json": {
+          "Select Input Type": "Monthly Goals",
+          "Paste The JSON": "{\"goals\": {\"SO department\": {\"goal\": \"lmao\", \"month\": \"September 2026\", \"deadline\": \"27/09/2026\"}}}",
+          "submittedAt": "2026-09-27T14:13:50.472+02:00",
+          "formMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.srv1463077.hstgr.cloud",
+            "user-agent": "python-requests/2.32.3",
+            "content-length": "357",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate",
+            "content-type": "application/json",
+            "x-forwarded-for": "115.160.209.102",
+            "x-forwarded-host": "n8n.srv1463077.hstgr.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "723ba21ea2ea",
+            "x-real-ip": "115.160.209.102"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "individual_updates": [
+              {
+                "Task ID": "TSK-260927-SHR-X7BT",
+                "Date": "27/09/2026",
+                "Task Description": "do something",
+                "Assigned To": "Shreyash",
+                "Assigned By": "Manager",
+                "Deadline": "27/09/2026",
+                "Priority": "Normal",
+                "Status": "Completed",
+                "Reason": "",
+                "Source": "Daily Goals Input",
+                "Updated By": "UI Input",
+                "Last Updated": "2026-09-27T12:24:01.150Z"
+              }
+            ]
+          },
+          "webhookUrl": "https://n8n.srv1463077.hstgr.cloud/webhook/monthly-goals-update",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
   "connections": {
-    "Extension Webhook": { "main": [[{ "node": "Action Router", "type": "main", "index": 0 }]] },
-    "Action Router": {
+    "On form submission": {
       "main": [
-        [{ "node": "Format New Request", "type": "main", "index": 0 }],
-        [{ "node": "Format Decision", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Input Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Format New Request": { "main": [[{ "node": "Append Extension Request", "type": "main", "index": 0 }]] },
-    "Format Decision": { "main": [[{ "node": "Update Extension Decision", "type": "main", "index": 0 }]] }
+    "Input Router": {
+      "main": [
+        [
+          {
+            "node": "Format Daily Goals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Monthly Goals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch All Tasks Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Live Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Daily Goals": {
+      "main": [
+        [
+          {
+            "node": "Upsert Tasks (Daily Goals)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Monthly Goals": {
+      "main": [
+        [
+          {
+            "node": "Upsert Monthly Goals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Tasks Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch Monthly Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Monthly Context": {
+      "main": [
+        [
+          {
+            "node": "Prep LLM Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep LLM Payload": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Extract & Map Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Map Tasks": {
+      "main": [
+        [
+          {
+            "node": "Upsert Tasks (Transcript)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Reports": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Live Updates": {
+      "main": [
+        [
+          {
+            "node": "Upsert Tasks (Live Updates)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upsert Goals from Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Append Boss",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Updates": {
+      "main": [
+        [
+          {
+            "node": "Update Goals Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extension Webhook": {
+      "main": [
+        [
+          {
+            "node": "Action Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action Router": {
+      "main": [
+        [
+          {
+            "node": "Format New Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format New Request": {
+      "main": [
+        [
+          {
+            "node": "Append Extension Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Decision": {
+      "main": [
+        [
+          {
+            "node": "Update Extension Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": true,
-  "settings": { "executionOrder": "v1" },
-  "meta": { "instanceId": "5ef644fd2c07e9b5102bcb60029a5fd4b92657c261e4bae43282daec5b976f0c" },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "183d95a6-ab6e-4efa-9fec-3eb88c228f0c",
+  "meta": {
+    "instanceId": "5ef644fd2c07e9b5102bcb60029a5fd4b92657c261e4bae43282daec5b976f0c"
+  },
+  "id": "Ko0yozwySWLJjlrn",
   "tags": []
 }
