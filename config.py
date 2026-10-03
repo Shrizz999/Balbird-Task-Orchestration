@@ -7,6 +7,7 @@ from pathlib import Path
 # ==============================================================================
 N8N_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/form/280e1709-fbed-4560-a10c-9f96956654b8"
 N8N_MONTHLY_UPDATES_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/monthly-goals-update"
+N8N_EXTENSION_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/extension-requests"
 
 # Workspace root directory — works both in dev and in frozen PyInstaller exe
 if getattr(sys, 'frozen', False):
@@ -23,7 +24,8 @@ SHEET_BASE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHrHDX22vdQV7
 SHEET_GIDS = {
     "Boss": "0",
     "Tasks": "1931533029",
-    "Goals": "1837353468"
+    "Goals": "1837353468",
+    "Extensions": "1895469142"
 }
 
 CSV_FILES = {

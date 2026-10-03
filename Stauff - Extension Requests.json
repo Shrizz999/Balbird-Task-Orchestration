@@ -1,0 +1,178 @@
+{
+  "name": "Stauff - Extension Requests",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "extension-requests",
+        "options": {}
+      },
+      "id": "ext-trigger-001",
+      "name": "Extension Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [400, 300],
+      "webhookId": "extension-requests-webhook"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "submit",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "decide",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [640, 300],
+      "id": "ext-router-001",
+      "name": "Action Router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    \"ID\": body.id,\n    \"Task ID\": body.task_id,\n    \"Task Description\": body.task_description,\n    \"Employee\": body.employee,\n    \"Department\": body.department || \"\",\n    \"Current Deadline\": body.current_deadline,\n    \"Requested Deadline\": body.requested_deadline,\n    \"Reason\": body.reason,\n    \"Status\": \"Pending\",\n    \"Manager Deadline\": \"\",\n    \"Manager Note\": \"\",\n    \"Submitted At\": body.submitted_at,\n    \"Decided At\": \"\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 200],
+      "id": "ext-format-submit-001",
+      "name": "Format New Request"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4", "mode": "list", "cachedResultName": "Copy of BalPigeon", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk" },
+        "sheetName": { "__rl": true, "value": 1895469142, "mode": "list", "cachedResultName": "Extensions", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1895469142" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID": "={{ $json.ID }}",
+            "Task ID": "={{ $json['Task ID'] }}",
+            "Task Description": "={{ $json['Task Description'] }}",
+            "Employee": "={{ $json.Employee }}",
+            "Department": "={{ $json.Department }}",
+            "Current Deadline": "={{ $json['Current Deadline'] }}",
+            "Requested Deadline": "={{ $json['Requested Deadline'] }}",
+            "Reason": "={{ $json.Reason }}",
+            "Status": "={{ $json.Status }}",
+            "Manager Deadline": "={{ $json['Manager Deadline'] }}",
+            "Manager Note": "={{ $json['Manager Note'] }}",
+            "Submitted At": "={{ $json['Submitted At'] }}",
+            "Decided At": "={{ $json['Decided At'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "ID", "displayName": "ID", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Task ID", "displayName": "Task ID", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Task Description", "displayName": "Task Description", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Employee", "displayName": "Employee", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Department", "displayName": "Department", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Current Deadline", "displayName": "Current Deadline", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Requested Deadline", "displayName": "Requested Deadline", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Reason", "displayName": "Reason", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Manager Deadline", "displayName": "Manager Deadline", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Manager Note", "displayName": "Manager Note", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Submitted At", "displayName": "Submitted At", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Decided At", "displayName": "Decided At", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1120, 200],
+      "id": "ext-append-001",
+      "name": "Append Extension Request",
+      "credentials": { "googleSheetsOAuth2Api": { "id": "e1MbcUzueWdnMKx5", "name": "Google Sheets account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    \"ID\": body.id,\n    \"Status\": body.status,\n    \"Manager Deadline\": body.manager_deadline || \"\",\n    \"Manager Note\": body.manager_note || \"\",\n    \"Decided At\": body.decided_at\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 400],
+      "id": "ext-format-decide-001",
+      "name": "Format Decision"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4", "mode": "list", "cachedResultName": "Copy of BalPigeon", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk" },
+        "sheetName": { "__rl": true, "value": 1895469142, "mode": "list", "cachedResultName": "Extensions", "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1895469142" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID": "={{ $json.ID }}",
+            "Status": "={{ $json.Status }}",
+            "Manager Deadline": "={{ $json['Manager Deadline'] }}",
+            "Manager Note": "={{ $json['Manager Note'] }}",
+            "Decided At": "={{ $json['Decided At'] }}"
+          },
+          "matchingColumns": ["ID"],
+          "schema": [
+            { "id": "ID", "displayName": "ID", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true, "removed": false },
+            { "id": "Status", "displayName": "Status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Manager Deadline", "displayName": "Manager Deadline", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Manager Note", "displayName": "Manager Note", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Decided At", "displayName": "Decided At", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1120, 400],
+      "id": "ext-update-001",
+      "name": "Update Extension Decision",
+      "credentials": { "googleSheetsOAuth2Api": { "id": "e1MbcUzueWdnMKx5", "name": "Google Sheets account" } }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Extension Webhook": { "main": [[{ "node": "Action Router", "type": "main", "index": 0 }]] },
+    "Action Router": {
+      "main": [
+        [{ "node": "Format New Request", "type": "main", "index": 0 }],
+        [{ "node": "Format Decision", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format New Request": { "main": [[{ "node": "Append Extension Request", "type": "main", "index": 0 }]] },
+    "Format Decision": { "main": [[{ "node": "Update Extension Decision", "type": "main", "index": 0 }]] }
+  },
+  "active": true,
+  "settings": { "executionOrder": "v1" },
+  "meta": { "instanceId": "5ef644fd2c07e9b5102bcb60029a5fd4b92657c261e4bae43282daec5b976f0c" },
+  "tags": []
+}

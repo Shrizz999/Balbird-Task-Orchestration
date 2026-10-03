@@ -408,6 +408,7 @@ class TaskUpdaterApp(ctk.CTk):
                 current_deadline=task.deadline,
                 requested_deadline=new_deadline,
                 reason=reason,
+                department=self.current_dept or "",
             )
 
             # Mark the task as Delayed with the reason (but no deadline change yet)

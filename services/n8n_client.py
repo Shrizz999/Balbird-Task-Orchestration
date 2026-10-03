@@ -1,10 +1,11 @@
 import json
 import requests
-from config import N8N_WEBHOOK_URL, N8N_MONTHLY_UPDATES_WEBHOOK_URL
+from config import N8N_WEBHOOK_URL, N8N_MONTHLY_UPDATES_WEBHOOK_URL, N8N_EXTENSION_WEBHOOK_URL
 
 class N8nClient:
     def __init__(self, webhook_url: str = N8N_WEBHOOK_URL):
         self.webhook_url = webhook_url
+        self.extension_webhook_url = N8N_EXTENSION_WEBHOOK_URL
 
     def submit_daily_goals(self, goals_dict: dict) -> bool:
         """
@@ -50,6 +51,31 @@ class N8nClient:
         except Exception as e:
             raise Exception(f"Failed to communicate with n8n: {str(e)}")
 
+
+
+    def submit_extension_request(self, request_data: dict) -> bool:
+        """
+        Submit a new extension request.
+        request_data: { "action": "submit", "id": "...", "task_id": "...", ... }
+        """
+        try:
+            resp = requests.post(self.extension_webhook_url, json=request_data, timeout=30)
+            resp.raise_for_status()
+            return True
+        except Exception as e:
+            raise Exception(f"Failed to submit extension request: {str(e)}")
+
+    def submit_extension_decision(self, decision_data: dict) -> bool:
+        """
+        Submit a manager decision on an extension request.
+        decision_data: { "action": "decide", "id": "...", "status": "Approved/Rejected", ... }
+        """
+        try:
+            resp = requests.post(self.extension_webhook_url, json=decision_data, timeout=30)
+            resp.raise_for_status()
+            return True
+        except Exception as e:
+            raise Exception(f"Failed to submit extension decision: {str(e)}")
 
 
     def _send_to_n8n(self, mode: str, payload: dict) -> bool:
