@@ -1,0 +1,2114 @@
+{
+  "name": "Stauff - Monthly Tasks Updater",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Task & Goal Orchestrator",
+        "formDescription": "Analyze transcripts and assign tasks automatically.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Select Input Type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Daily Goals"
+                  },
+                  {
+                    "option": "Monthly Goals"
+                  },
+                  {
+                    "option": "Daily Transcript"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Paste The JSON",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        768
+      ],
+      "id": "16b01b13-794b-444a-bd44-306c85cefb03",
+      "name": "On form submission",
+      "webhookId": "c959fa60-9571-41f8-9042-86afa602184d"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Daily Goals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Monthly Goals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Daily Transcript",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Live Updates",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1984,
+        768
+      ],
+      "id": "33201ea2-2d81-474a-b8d2-2c5742334d53",
+      "name": "Input Router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nfor (const [name, details] of Object.entries(goalsData)) {\n  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n  const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n  splitItems.push({\n    json: {\n      \"Task ID\": `TSK-${dateStr}-${name.substring(0,3).toUpperCase()}-${shortHash}`,\n      \"Date\": new Date().toLocaleDateString('en-GB'),\n      \"Task Description\": details.goal || details,\n      \"Assigned To\": name,\n      \"Assigned By\": \"Manager\",\n      \"Deadline\": details.deadline || \"\",\n      \"Status\": \"Pending\",\n      \"Reason\": \"\",\n      \"Source\": \"Daily Goals Input\",\n      \"Updated By\": \"n8n Automation\",\n      \"Last Updated\": new Date().toISOString()\n    }\n  });\n}\nreturn splitItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        464
+      ],
+      "id": "6ae23538-d5ef-4d91-9e98-90b079a8a250",
+      "name": "Format Daily Goals"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nfor (const [dept, goal] of Object.entries(goalsData)) {\n  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n  const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n  splitItems.push({\n    json: {\n      \"Goal ID\": `GOAL-${dateStr}-${dept.substring(0,3).toUpperCase()}-${shortHash}`,\n      \"Time Frame\": \"Monthly\",\n      \"Week/Month\": new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),\n      \"Assigned To\": dept,\n      \"Given By\": \"UI Input / Manager\",\n      \"Goal\": goal,\n      \"Deadline\": \"End of Month\",\n      \"Status\": \"Pending\",\n      \"Reason\": \"\",\n      \"Updated By\": \"n8n Automation\",\n      \"Last Updated\": new Date().toISOString()\n    }\n  });\n}\nreturn splitItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        672
+      ],
+      "id": "fc6605e1-5214-45e9-b886-d74d48e23302",
+      "name": "Format Monthly Goals"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1837353468,
+          "mode": "list",
+          "cachedResultName": "Goals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Goal ID": "={{ $json['Goal ID'] }}",
+            "Time Frame": "={{ $json['Time Frame'] }}",
+            "Week/Month": "={{ $json['Week/Month'] }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Given By": "={{ $json['Given By'] }}",
+            "Goal": "={{ $json.Goal.goal }}",
+            "Deadline": "={{ $json.Deadline }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Goal ID"
+          ],
+          "schema": [
+            {
+              "id": "Goal ID",
+              "displayName": "Goal ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Time Frame",
+              "displayName": "Time Frame",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Week/Month",
+              "displayName": "Week/Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Given By",
+              "displayName": "Given By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Goal",
+              "displayName": "Goal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2688,
+        672
+      ],
+      "id": "1e54c8da-970b-41f5-8036-90dfe475eef2",
+      "name": "Upsert Monthly Goals",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1837353468,
+          "mode": "list",
+          "cachedResultName": "Goals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Week/Month",
+              "lookupValue": "={{ $now.setZone('Asia/Kolkata').toFormat('MMMM, yyyy') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3088,
+        800
+      ],
+      "id": "101dda84-ded2-4ecd-a4c0-2a79f0b53ee7",
+      "name": "Fetch Monthly Context",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawInput = $('On form submission').first().json['Paste The JSON'];\nlet finalTranscript = \"\";\nlet individualUpdates = {};\n\ntry {\n    const parsedData = JSON.parse(rawInput);\n    finalTranscript = parsedData.transcript || \"\";\n    individualUpdates = parsedData.individual_updates || {};\n} catch (e) {\n    finalTranscript = rawInput;\n}\n\nconst today = new Date().toLocaleDateString('en-GB');\nlet dailyContext = [];\nlet monthlyContext = [];\n\ntry {\n    const ganesh = $('Fetch Ganesh Context').all() || [];\n    const shreyash = $('Fetch Shreyash Context').all() || [];\n    const shruti = $('Fetch Shruti Context').all() || [];\n    const vaishnavi = $('Fetch Vaishnavi Context').all() || [];\n    \n    // We only pass items that have actual data (i.e., not empty alwaysOutputData placeholders)\n    dailyContext = [...ganesh, ...shreyash, ...shruti, ...vaishnavi]\n      .map(item => item.json)\n      .filter(item => Object.keys(item).length > 0 && item[\"Task ID\"]);\n} catch(e) {}\n\ntry {\n    const rawMonthly = $('Fetch Monthly Context').all() || [];\n    monthlyContext = rawMonthly.map(item => item.json).filter(item => Object.keys(item).length > 0 && item[\"Goal ID\"]);\n} catch(e) {}\n\nreturn [{\n  json: {\n    transcript: finalTranscript,\n    individual_updates: individualUpdates,\n    daily_context: dailyContext,\n    monthly_context: monthlyContext\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2992,
+        976
+      ],
+      "id": "344a42af-5be9-4391-a50d-0e6e807dfb7b",
+      "name": "Prep LLM Payload"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.transcript }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=OUTPUT FORMAT:\nYou MUST output a valid JSON containing two arrays: \"Tasks\" and \"Reports\".\n\nCONTEXT:\nDaily Context (Existing Tasks): {{ JSON.stringify($json.daily_context) }}\nMonthly Goals: {{ JSON.stringify($json.monthly_context) }}\n\n\"Tasks\" Schema:\n{\n  \"Task_ID\": \"[If the task updates an existing task in Daily Context, put its Task ID here. If it's a completely new task, leave this blank]\",\n  \"Task_Description\": \"Single actionable task\",\n  \"Assigned_To\": \"[Name]\",\n  \"Assigned_By\": \"[Name]\",\n  \"Deadline\": \"[Extracted deadline in DD/MM/YYYY format or blank]\",\n  \"Status\": \"[Pending, Completed, Delayed]\",\n  \"Reason\": \"[Reason for delay, else blank]\",\n  \"Source\": \"Meeting Transcript\"\n}\n\n\"Reports\" Schema:\n{\n  \"Name\": \"[Name]\",\n  \"Report\": \"Honest 1-2 sentence heuristic summary of performance.\",\n  \"Rating\": \"Strict score out of 5\"\n}\n\nIMPORTANT:\n- If a deadline is mentioned or can be extracted, ALWAYS output it strictly in DD/MM/YYYY format.\n- Never use any other date format for \"Deadline\".\n- If no deadline is provided or identifiable, leave \"Deadline\" blank.\n- Ensure valid JSON."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        3296,
+        976
+      ],
+      "id": "261e27fb-19e9-43e3-88ea-490252f527ff",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "openrouter/free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        3296,
+        1168
+      ],
+      "id": "0a762408-3750-48a0-8318-37327c5d0ede",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "f4CDg2qoRRQd4Na9",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.text || \"\";\nlet cleanText = text;\n\n// Find the first { and last } to robustly extract the JSON\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) {\n    cleanText = cleanText.substring(firstBrace, lastBrace + 1);\n}\n\nlet parsed = { Tasks: [], Reports: [] };\ntry { \n    parsed = JSON.parse(cleanText); \n} catch (e) { \n    console.log(\"LLM Parse Error:\", e); \n}\nconst tasks = parsed.Tasks || [];\n\nreturn tasks.map(t => {\n    const safeName = (t.Assigned_To || \"UNK\").substring(0,3).toUpperCase();\n    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n    const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n    \n    // Use the existing Task_ID provided by LLM or generate a new one if blank\n    const taskId = (t.Task_ID && t.Task_ID.trim() !== \"\") ? t.Task_ID : `TSK-${dateStr}-${safeName}-${shortHash}`;\n    \n    return { \n      json: {\n        \"Task ID\": taskId,\n        \"Date\": new Date().toLocaleDateString('en-GB'),\n        \"Task Description\": t.Task_Description || \"-\",\n        \"Assigned To\": t.Assigned_To || \"-\",\n        \"Assigned By\": t.Assigned_By || \"-\",\n        \"Deadline\": t.Deadline || \"\",\n        \"Status\": t.Status || \"Pending\",\n        \"Reason\": t.Reason || \"\",\n        \"Source\": t.Source || \"Meeting Transcript\",\n        \"Updated By\": \"n8n Automation\",\n        \"Last Updated\": new Date().toISOString()\n      }\n    };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3584,
+        864
+      ],
+      "id": "933f7d99-53d2-4880-82ad-a7c927b0fb76",
+      "name": "Extract & Map Tasks"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.text || \"\";\nlet cleanText = text;\n\n// Find the first { and last } to robustly extract the JSON\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) {\n    cleanText = cleanText.substring(firstBrace, lastBrace + 1);\n}\n\nlet parsed = { Tasks: [], Reports: [] };\ntry { \n    parsed = JSON.parse(cleanText); \n} catch (e) { \n    console.log(\"LLM Parse Error:\", e); \n}\nreturn (parsed.Reports || []).map(r => {\n    r.Date = new Date().toLocaleDateString('en-GB');\n    return { json: r };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3584,
+        1168
+      ],
+      "id": "c0f39af9-ab91-402f-8ac9-84895867c205",
+      "name": "Extract Reports"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Assigned To'] }}",
+                    "rightValue": "Ganesh",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Assigned To'] }}",
+                    "rightValue": "Shreyash",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Assigned To'] }}",
+                    "rightValue": "Shruti",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Assigned To'] }}",
+                    "rightValue": "Vaishnavi",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        3824,
+        336
+      ],
+      "id": "2a1be00a-5be6-47d8-ba93-2761b50f1e5b",
+      "name": "Task Router"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1222219746,
+          "mode": "list",
+          "cachedResultName": "Ganesh",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1222219746"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $json['Task ID'] }}",
+            "Date": "={{ $json['Task Description'][0].date }}",
+            "Task Description": "={{ $json['Task Description'][0].goal }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Assigned By": "={{ $json['Assigned By'] }}",
+            "Deadline": "={{ $json['Task Description'][0].deadline }}{{ $json.Deadline }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Source": "={{ $json.Source }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Task ID"
+          ],
+          "schema": [
+            {
+              "id": "Task ID",
+              "displayName": "Task ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task Description",
+              "displayName": "Task Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned By",
+              "displayName": "Assigned By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4192,
+        576
+      ],
+      "id": "0eaee50d-0c60-4e11-84c4-d7aae77afbfa",
+      "name": "Upsert Ganesh",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1619592138,
+          "mode": "list",
+          "cachedResultName": "Shreyash",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1619592138"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $json['Task ID'] }}",
+            "Task Description": "={{ $json['Task Description'][0].goal }}",
+            "Date": "={{ $json['Task Description'][0].date }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Assigned By": "={{ $json['Assigned By'] }}",
+            "Status": "={{ $json.Status }}",
+            "Deadline": "={{ $json['Task Description'][0].deadline }}{{ $json.Deadline }}",
+            "Reason": "={{ $json.Reason }}",
+            "Source": "={{ $json.Source }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Task ID"
+          ],
+          "schema": [
+            {
+              "id": "Task ID",
+              "displayName": "Task ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task Description",
+              "displayName": "Task Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned By",
+              "displayName": "Assigned By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4192,
+        768
+      ],
+      "id": "87363d00-d889-49ff-9ef8-0bf39698c4cc",
+      "name": "Upsert Shreyash",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 130949039,
+          "mode": "list",
+          "cachedResultName": "Shruti",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=130949039"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $json['Task ID'] }}",
+            "Date": "={{ $json['Task Description'][0].date }}{{ $json.Date }}",
+            "Task Description": "={{ $json['Task Description'][0].goal }}{{ $json['Task Description'] }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Assigned By": "={{ $json['Assigned By'] }}",
+            "Deadline": "={{ $json['Task Description'][0].deadline }}{{ $json.Deadline }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Source": "={{ $json.Source }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Task ID"
+          ],
+          "schema": [
+            {
+              "id": "Task ID",
+              "displayName": "Task ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task Description",
+              "displayName": "Task Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned By",
+              "displayName": "Assigned By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4192,
+        976
+      ],
+      "id": "64e3d8da-a31d-45df-96b5-4d679a6a22a9",
+      "name": "Upsert Shruti",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 97806626,
+          "mode": "list",
+          "cachedResultName": "Vaishnavi",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=97806626"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $json['Task ID'] }}",
+            "Date": "={{ $json['Task Description'][0].date}}",
+            "Task Description": "={{ $json['Task Description'][0].goal }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Assigned By": "={{ $json['Assigned By'] }}",
+            "Deadline": "={{ $json['Task Description'][0].deadline }}{{ $json.Deadline }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Source": "={{ $json.Source }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Task ID"
+          ],
+          "schema": [
+            {
+              "id": "Task ID",
+              "displayName": "Task ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Task Description",
+              "displayName": "Task Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned By",
+              "displayName": "Assigned By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4192,
+        1168
+      ],
+      "id": "76087593-936b-4067-9c43-b49879b58c71",
+      "name": "Upsert Vaishnavi",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Boss",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.Date }}",
+            "Report": "={{ $json.Report }}",
+            "Name": "={{ $json.Name }}",
+            "Rating": "={{ $json.Rating }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Report",
+              "displayName": "Report",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rating",
+              "displayName": "Rating",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4192,
+        1376
+      ],
+      "id": "e1a15061-1701-4d83-802c-5d4e3ff36cb5",
+      "name": "Append Boss",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\n\nconst uiUpdates = payload.individual_updates || []; \nconst tasks = [];\n\nfor (const update of uiUpdates) {\n    tasks.push(update); \n}\n\nconst splitItems = tasks.map(task => {\n  return {\n    json: {\n      \"Goal ID\": task[\"Task ID\"],\n      \"Task ID\": task[\"Task ID\"],\n      \"Date\": task[\"Date\"],\n      \"Task Description\": task[\"Task Description\"],\n      \"Goal\": task[\"Task Description\"],\n      \"Assigned To\": task[\"Assigned To\"],\n      \"Assigned By\": task[\"Assigned By\"],\n      \"Given By\": task[\"Assigned By\"],\n      \"Deadline\": task[\"Deadline\"],\n      \"Priority\": task[\"Priority\"] || \"Normal\",\n      \"Status\": task[\"Status\"],\n      \"Reason\": task[\"Reason\"] || \"\",\n      \"Source\": task[\"Source\"],\n      \"Updated By\": \"UI Input\", \n      \"Last Updated\": new Date().toISOString()\n    }\n  };\n});\n\nreturn splitItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        1136
+      ],
+      "id": "fc8e970d-2cb9-49b3-a9b0-0ce777df1b13",
+      "name": "Format Live Updates"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1837353468,
+          "mode": "list",
+          "cachedResultName": "Goals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Goal ID": "={{ $json['Task ID'] }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Goal": "={{ $json['Task Description'] }}",
+            "Deadline": "={{ $json.Deadline }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}",
+            "Week/Month": "={{ $json.Date }}",
+            "Given By": "={{ $json['Given By'] }}",
+            "Time Frame": "Monthly"
+          },
+          "matchingColumns": [
+            "Goal ID"
+          ],
+          "schema": [
+            {
+              "id": "Goal ID",
+              "displayName": "Goal ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Time Frame",
+              "displayName": "Time Frame",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Week/Month",
+              "displayName": "Week/Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Given By",
+              "displayName": "Given By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Goal",
+              "displayName": "Goal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2688,
+        1280
+      ],
+      "id": "bb8b6f43-d5c7-4a2a-a63d-02988dd49a7c",
+      "name": "Upsert Goals from Updates",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1222219746,
+          "mode": "list",
+          "cachedResultName": "Ganesh",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1222219746"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Date",
+              "lookupValue": "={{ $now.setZone('Asia/Kolkata').toFormat('dd/MM/yyyy') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2384,
+        976
+      ],
+      "id": "a485343c-e454-4f13-84e7-bc4d3ca85a0d",
+      "name": "Fetch Ganesh Context",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1619592138,
+          "mode": "list",
+          "cachedResultName": "Shreyash",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1619592138"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Date",
+              "lookupValue": "={{ $now.setZone('Asia/Kolkata').toFormat('dd/MM/yyyy') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2592,
+        976
+      ],
+      "id": "040c18f4-13ff-43cb-ae11-c4bd54719293",
+      "name": "Fetch Shreyash Context",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 130949039,
+          "mode": "list",
+          "cachedResultName": "Shruti",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=130949039"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Date",
+              "lookupValue": "={{ $now.setZone('Asia/Kolkata').toFormat('dd/MM/yyyy') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3184,
+        608
+      ],
+      "id": "740be796-a5a8-4b64-84d1-f285ea506f9d",
+      "name": "Fetch Shruti Context",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 97806626,
+          "mode": "list",
+          "cachedResultName": "Vaishnavi",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=97806626"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Date",
+              "lookupValue": "={{ $now.setZone('Asia/Kolkata').toFormat('dd/MM/yyyy') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3488,
+        608
+      ],
+      "id": "0bb5d7dc-25fb-431e-a263-3bfb0c581936",
+      "name": "Fetch Vaishnavi Context",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e44590a8-752f-47b7-be58-0a1bb7a3f186",
+              "leftValue": "={{ $json.Name }}",
+              "rightValue": "Balraj Waghmare",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3792,
+        1168
+      ],
+      "id": "952ed9e0-35fa-41bb-af0d-820a4c10a2cb",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "monthly-goals-update",
+        "options": {}
+      },
+      "id": "84c4d576-b07d-4839-9652-d3627e370b2c",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        1696,
+        1504
+      ],
+      "webhookId": "22bae45d-1205-49c5-a5dc-0aa13332be5e"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json.body || $input.first().json;\n\nconst uiUpdates = payload.individual_updates || [];\nconst splitItems = [];\n\nfor (const task of uiUpdates) {\n  splitItems.push({\n    json: {\n      \"Goal ID\": task[\"Task ID\"],\n      \"Assigned To\": task[\"Assigned To\"],\n      \"Task Description\": task[\"Task Description\"],\n      \"Deadline\": task[\"Deadline\"],\n      \"Status\": task[\"Status\"],\n      \"Reason\": task[\"Reason\"] || \"\",\n      \"Updated By\": \"UI Input\",\n      \"Last Updated\": new Date().toISOString()\n    }\n  });\n}\n\nreturn splitItems;"
+      },
+      "id": "a7bd51a4-2910-4b52-8e54-18a86bf6da72",
+      "name": "Format Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        1504
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
+          "mode": "list",
+          "cachedResultName": "Copy of BalPigeon",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1837353468,
+          "mode": "list",
+          "cachedResultName": "Goals",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Goal ID": "={{ $json['Goal ID'] }}",
+            "Assigned To": "={{ $json['Assigned To'] }}",
+            "Goal": "={{ $json['Task Description'] }}",
+            "Deadline": "={{ $json.Deadline }}",
+            "Status": "={{ $json.Status }}",
+            "Reason": "={{ $json.Reason }}",
+            "Updated By": "={{ $json['Updated By'] }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "matchingColumns": [
+            "Goal ID"
+          ],
+          "schema": [
+            {
+              "id": "Goal ID",
+              "displayName": "Goal ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Time Frame",
+              "displayName": "Time Frame",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Week/Month",
+              "displayName": "Week/Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Assigned To",
+              "displayName": "Assigned To",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Given By",
+              "displayName": "Given By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Goal",
+              "displayName": "Goal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deadline",
+              "displayName": "Deadline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason",
+              "displayName": "Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Updated By",
+              "displayName": "Updated By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Updated",
+              "displayName": "Last Updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "e8df5fe9-c15d-4633-9714-2da03525bdef",
+      "name": "Update Goals Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2144,
+        1504
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "e1MbcUzueWdnMKx5",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "On form submission": [
+      {
+        "json": {
+          "Select Input Type": "Daily Transcript",
+          "Paste The JSON": "{\"transcript\": \"Ganesh Pal: 00:00 \\n Hello.  Hello.\\n\\nbalbirdind@gmailcom: 00:27 \\n Hi guys.  How are you?  Ganesh?  You are audible.\\n\\nGanesh Pal: 00:32 \\n Thank you.\\n\\nbalbirdind@gmailcom: 00:34 \\n Am I audible to you?\\n\\nGanesh Pal: 00:37 \\n Yes, loud and clear.\\n\\nbalbirdind@gmailcom: 00:40 \\n That's perfect.  I think we need.  We have to conversate in English, right?\\n\\nGanesh Pal: 00:45 \\n Yeah, noted.\\n\\nbalbirdind@gmailcom: 00:47 \\n Okay.\\n\\nbalbirdind@gmailcom: 00:48 \\n Where are other two members?  Vaishnavi and Shruti.\\n\\nGanesh Pal: 00:54 \\n I'll call them.\\n\\nbalbirdind@gmailcom: 00:56 \\n Yes please.\\n\\nbalbirdind@gmailcom: 01:03 \\n Shruti is in the lobby.  Shruti came.  Shruti, just call vaishnavi once.\\n\\nShruti Chavhan: 01:14 \\n Hello.  Hello.\\n\\nbalbirdind@gmailcom: 01:16 \\n Hello.\\n\\nbalbirdind@gmailcom: 01:16 \\n Hello.\\n\\nbalbirdind@gmailcom: 01:17 \\n We can hear you.\\n\\nShruti Chavhan: 01:19 \\n Hello.\\n\\nbalbirdind@gmailcom: 01:20 \\n Yes.\\n\\nbalbirdind@gmailcom: 01:21 \\n Yes.  Yes.\\n\\nbalbirdind@gmailcom: 01:45 \\n Microsoft.\\n\\nbalbirdind@gmailcom: 02:01 \\n Okay.\\n\\nbalbirdind@gmailcom: 02:16 \\n Okay.  Is waiting in the morning.\\n\\nbalbirdind@gmailcom: 02:37 \\n Someone admit her.\\n\\nbalbirdind@gmailcom: 02:46 \\n Yes, ruthie.\\n\\nShruti Chavhan: 02:50 \\n Thank you.  Thank you.\\n\\nGanesh Pal: 02:59 \\n Download.\\n\\nbalbirdind@gmailcom: 03:00 \\n Okay.\\n\\nbalbirdind@gmailcom: 03:00 \\n Okay.\\n\\nbalbirdind@gmailcom: 03:02 \\n No problem.\\n\\nShrizz S: 03:09 \\n Hello.  Yes, it works on Chrome too.  Browser too.  No need to download software.\\n\\nbalbirdind@gmailcom: 03:25 \\n Is saying that Microsoft Teams works on a browser too.  So she does not need to download the application.  He's talking about.\\n\\nShruti Chavhan: 03:42 \\n Yes.  It means some information or something like that.\\n\\nbalbirdind@gmailcom: 03:50 \\n Yeah, no issues.\\n\\nShruti Chavhan: 04:45 \\n Next time.\\n\\nbalbirdind@gmailcom: 04:47 \\n Yes.\\n\\nShruti Chavhan: 06:35 \\n Gaylajadori Maladna Laktoto.\\n\\nbalbirdind@gmailcom: 06:47 \\n Maitina Kasastoto.\\n\\nShruti Chavhan: 06:52 \\n Don't worry.\\n\\nbalbirdind@gmailcom: 07:01 \\n Ali.\\n\\nbalbirdind@gmailcom: 07:07 \\n Vp vice president.  Anyways.  Yes.  Yes, yes.\\n\\nShruti Chavhan: 07:55 \\n Feedback.\\n\\nbalbirdind@gmailcom: 08:19 \\n Could be to data goods.  I don't think.\\n\\nGanesh Pal: 10:23 \\n Anyway.\\n\\nbalbirdind@gmailcom: 10:37 \\n A character.  The same concept, same sa.  The word sunny.  Photos clustering in a phone cover.\\n\\nbalbirdind@gmailcom: 13:41 \\n Okay.\\n\\nbalbirdind@gmailcom: 14:09 \\n Philips nikola.  Don't know.\\n\\nbalbirdind@gmailcom: 14:39 \\n Okay.\\n\\nbalbirdind@gmailcom: 14:53 \\n Cold coffee Banana recipe.  Very good.\\n\\nbalbirdind@gmailcom: 15:03 \\n Okay.\\n\\nbalbirdind@gmailcom: 15:10 \\n Conference.  Suggestion.  Give clips.  Kashipai j kuto PI j. Huh?  Mitamanta Sunday laheto studio.\\n\\nbalbirdind@gmailcom: 16:08 \\n Okay.\\n\\nbalbirdind@gmailcom: 16:44 \\n Hayata.\\n\\nShrizz S: 17:14 \\n I think.\\n\\nShruti Chavhan: 17:27 \\n Yeah.\\n\\nbalbirdind@gmailcom: 17:29 \\n Okay.  Okay.  Okay.\\n\\nbalbirdind@gmailcom: 17:35 \\n Video.\\n\\nShrizz S: 17:54 \\n English.  English.\\n\\nbalbirdind@gmailcom: 18:00 \\n Wait, wait.  We'll have the tech conversation in English.\\n\\nShrizz S: 18:05 \\n No, no.\\n\\nbalbirdind@gmailcom: 18:08 \\n Okay.\\n\\nbalbirdind@gmailcom: 18:08 \\n You need the full conversation.  No issues regarding task management.  And so thing we have to complete that till Sunday evening.  I mean like day after tomorrow.  Is it possible for you both.  And Shruti Vaishnavi you need to give real and very aggressive feedbacks for user friendliness and user interface.\\n\\nShruti Chavhan: 18:39 \\n Yes.\\n\\nShrizz S: 18:39 \\n First can you ask them their company data like the number of people, names of the people departments of the people.  So we can add it in a database.\\n\\nShruti Chavhan: 18:49 \\n You should have asked that day only they were asking what?  What?  All you need.\\n\\nbalbirdind@gmailcom: 18:58 \\n See in total.  As much as I know There are total 35 members which who work in that office.  Out of them four are in sales coordination department.  Then no.  4, Three are there in sales coordination.  Two in sales, one in application, two in purchase department.  Then one in production, one in logistics, one in manufacturing.  Actually you can assume and you know that right?\\n\\nShrizz S: 19:33 \\n As they are going to deploy directly we need a complete information about the names of the people and the department.\\n\\nbalbirdind@gmailcom: 19:47 \\n Right now you can just name them as Member 1, Member 2, Member 3.\\n\\nShrizz S: 19:53 \\n But can't you just ask?\\n\\nbalbirdind@gmailcom: 19:56 \\n I will Ask him.  That's not an issue.\\n\\nbalbirdind@gmailcom: 19:59 \\n But.  Okay.\\n\\nbalbirdind@gmailcom: 20:02 \\n Till when do you need this information?\\n\\nShrizz S: 20:05 \\n Tomorrow.\\n\\nbalbirdind@gmailcom: 20:07 \\n Okay.\\n\\nbalbirdind@gmailcom: 20:07 \\n I'll just have a call with a and let you know whatever task management progress is doing.  You need to also add hypothetical expectations.  Okay.  Like if you are consider yourself as a member or for from the point of view of a management over there reliability which.  What type of reliability will you consider or like expectations?  You need to ask him some questions regarding data security, how the AI works, what is what type of output that task management portal can give you and much more.  You need to act like that Toxic X.\\n\\nbalbirdind@gmailcom: 20:55 \\n Okay.\\n\\nbalbirdind@gmailcom: 20:56 \\n While breaking up you need to ask as many as questions as you can.  But again when are you going to do this regarding task management?  Suresh, do you have anything to show right now?  Any changes?  Major changes in task management?\\n\\nShrizz S: 21:17 \\n Yes, please proceed.\\n\\nbalbirdind@gmailcom: 21:20 \\n Then.  I think you can share your screen.\\n\\nShrizz S: 21:34 \\n Two minutes please.\\n\\nbalbirdind@gmailcom: 21:42 \\n Ganesh.\\n\\nGanesh Pal: 21:46 \\n Yes sir.\\n\\nbalbirdind@gmailcom: 21:47 \\n Ganesh, you have all the data correct?\\n\\nbalbirdind@gmailcom: 21:52 \\n Yeah.\\n\\nbalbirdind@gmailcom: 21:55 \\n Can you just tell me what are your next steps.\\n\\nGanesh Pal: 22:01 \\n Actually on our system?  Wait, wait wait.\\n\\nbalbirdind@gmailcom: 22:06 \\n I think we have that.  Yes.  Yes.\\n\\nShrizz S: 22:11 \\n Actually you will need to create all the members and their logins on Mongolia TV as you need to log in.  And then I will use the same accounts for task management.\\n\\nGanesh Pal: 22:25 \\n No, no.  We are not doing that initially whenever the login page pop ups now we'll enter the username.  Say we are five member and I am Ganesh Pal from sales operation department.  So I'll just enter their Ganesh and departmental sales operation and I'll just enter login.  Whenever I do the any so pushing or something the database will get the attribute of this key.  What is my name and at what time I push that data.\\n\\nShrizz S: 23:04 \\n Then where is the security in this?\\n\\nGanesh Pal: 23:07 \\n We are not adding that dev right now but we will do that in the next before deploying the system.  It's not a big deal.  It's much easier than it looks.  So just focus on logic right now.  We.  We will do that later.\\n\\nbalbirdind@gmailcom: 23:27 \\n Okay.\\n\\nShrizz S: 23:30 \\n Is my screen visible?\\n\\nGanesh Pal: 23:33 \\n Yep.\\n\\nbalbirdind@gmailcom: 23:33 \\n Yes.\\n\\nbalbirdind@gmailcom: 23:35 \\n And Shruti Vai, you also need to check that how can we deploy it?  Like I just heard a loose comment that day from that IT guy that you bring whatever solution you want to.  Let's see how much the all the users will use it.  Like they were jiggling a little bit.  They were so confident that no one will use any type of software we give.  So we need to make it so simple that it goes directly into their process.\\n\\nbalbirdind@gmailcom: 24:11 \\n Okay, but first let's see.\\n\\nbalbirdind@gmailcom: 24:38 \\n Okay.\\n\\nShrizz S: 24:46 \\n So these two are the same as the previous version.  Just I Removed the whole thing that year was to update the data task as this will be the main interface for management team or the hod.  So I removed it and then added a monthly task.  So here you can like the whole process will be like Instead of that team deciding whether their monthly task is complete or not that department they will send the reports to the jury and then all management team and they will decide whether it's complete or not.  So as you can see I can just complete it or.  If it.  If the task is delayed it just asks reason of delay and new deadline to be set.  So I give some reason to delay and give new deadline submit so it gets submitted and then the whole user one is here.  So this is an.  This is.  This app is for the employees so they can select just select their department and name and make all the tasks like we used to.  These are the two changes and in the dashboard.  So yeah everything is same.  Just suppose there is a delay so you can double click on it and it will show both all details of it.  So with us why was it the delayed what is the old timeline?  What is the new timeline?  So you can see the data Same with your and now the search bar works.  So if I search something so it works okay and then the sos are deleted right now.  So you won't be able to see it.  But if you click on from here too it also gives all the data.  So that's the update.\\n\\nbalbirdind@gmailcom: 28:15 \\n Okay.  Okay.\\n\\nbalbirdind@gmailcom: 28:20 \\n Shruti Vishnu you can ask him a few questions.  And you need to ask them a couple questions.\\n\\nShruti Chavhan: 28:32 \\n Can we ask the questions tomorrow?  Because I couldn't even hear him.  The teacher is too loud over here.\\n\\nbalbirdind@gmailcom: 28:39 \\n Okay, if that is seen okay, So.\\n\\nbalbirdind@gmailcom: 28:45 \\n I have one doubt.  Saturday Sunday Monday Tuesday.  Okay Wednesday itself is 30th and on that day you have your engineering today.  So total five days.  How much time when and what will you do in those five days?  And what like how will you allot your tasks.  Task management still Muji user interface wise now.\\n\\nbalbirdind@gmailcom: 30:58 \\n Okay.\\n\\nShruti Chavhan: 31:10 \\n Hanganish lamb.\\n\\nbalbirdind@gmailcom: 31:59 \\n The Kaikasaganari.\\n\\nGanesh Pal: 32:54 \\n Decide.  Friday Saturday.  Monday Tuesday.  At least catalog to be ready.  Detailed catalog.  Accuracy around 80%.  Data privacy.\\n\\nbalbirdind@gmailcom: 36:19 \\n Okay.  Take.  And.  Okay.  Okay.  Okay.  Okay.\\n\\nGanesh Pal: 40:47 \\n Thought.\\n\\nbalbirdind@gmailcom: 41:41 \\n Okay.\\n\\nGanesh Pal: 42:05 \\n Pin.\\n\\nbalbirdind@gmailcom: 42:31 \\n Bharat.\\n\\nGanesh Pal: 43:20 \\n I'm retired in editorial retirement Lilia man editing.\\n\\nbalbirdind@gmailcom: 43:31 \\n Like the Vicharu.\\n\\nGanesh Pal: 43:40 \\n Tk.\\n\\nbalbirdind@gmailcom: 43:43 \\n Tk bastard sangaman sakiti.  Hypothetical expectations.\\n\\nbalbirdind@gmailcom: 44:57 \\n Yes.\\n\\nbalbirdind@gmailcom: 46:11 \\n So Karnata.  Shruti agar to just.\\n\\nShruti Chavhan: 46:38 \\n That is my plan for tomorrow.\\n\\nbalbirdind@gmailcom: 46:40 \\n Very good, very good Excellent plan.  Marketing strategies and international relations yes so basically.  Feedback.  International contact.\\n\\nShruti Chavhan: 48:18 \\n Okay okay got it.\\n\\nbalbirdind@gmailcom: 48:21 \\n All right.\\n\\nbalbirdind@gmailcom: 48:41 \\n Okay.\\n\\nbalbirdind@gmailcom: 48:45 \\n Bye.\\n\\nbalbirdind@gmailcom: 48:45 \\n Bye.  Bye.\\n\\nGanesh Pal: 48:46 \\n Bye.\\n\\nbalbirdind@gmailcom: 48:49 \\n End karate.\"}",
+          "submittedAt": "2026-09-27T13:30:08.967+02:00",
+          "formMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Input Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Router": {
+      "main": [
+        [
+          {
+            "node": "Format Daily Goals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Monthly Goals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Ganesh Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Live Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Daily Goals": {
+      "main": [
+        [
+          {
+            "node": "Task Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Monthly Goals": {
+      "main": [
+        [
+          {
+            "node": "Upsert Monthly Goals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Monthly Context": {
+      "main": [
+        [
+          {
+            "node": "Prep LLM Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep LLM Payload": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Extract & Map Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Map Tasks": {
+      "main": [
+        [
+          {
+            "node": "Task Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Reports": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task Router": {
+      "main": [
+        [
+          {
+            "node": "Upsert Ganesh",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Shreyash",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Shruti",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Vaishnavi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Live Updates": {
+      "main": [
+        [
+          {
+            "node": "Task Router",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upsert Goals from Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Ganesh Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch Shreyash Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Shreyash Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch Shruti Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Shruti Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch Vaishnavi Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Vaishnavi Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch Monthly Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Append Boss",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Updates": {
+      "main": [
+        [
+          {
+            "node": "Update Goals Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e8f382ba-c867-46a4-b39b-87de4a0db41c",
+  "meta": {
+    "instanceId": "5ef644fd2c07e9b5102bcb60029a5fd4b92657c261e4bae43282daec5b976f0c"
+  },
+  "id": "Ko0yozwySWLJjlrn",
+  "tags": []
+}

@@ -1,0 +1,9 @@
+Goal ID,Time Frame,Week/Month,Assigned To,Given By,Goal,Deadline,Status,Reason,Updated By,Last Updated,Priority
+GOAL-260921-SO -GXS8,Monthly,September 2026,SO department,UI Input / Manager,Finalize all n8n workflow automations and ensure the Google Sheets Upsert architecture is 100% stable.,End of Month,Pending,,n8n Automation,2026-09-21T20:47:51.073Z,Normal
+GOAL-260921-PO -FABE,Monthly,September 2026,PO department,UI Input / Manager,Complete the backend architecture for the manufacturing portal and deploy to staging.,End of Month,Pending,,n8n Automation,2026-09-21T20:47:51.073Z,Normal
+GOAL-260921-SAL-M1YD,Monthly,September 2026,Sales Department,UI Input / Manager,Onboard at least 15 new vendor consultancies from the German manufacturing corridor.,End of Month,Pending,,n8n Automation,2026-09-21T20:47:51.074Z,Normal
+GOAL-260921-LOG-7ANX,Monthly,September 2026,Logistics Department,UI Input / Manager,"Produce, edit, and publish 4 high-quality B2B informational videos.",End of Month,Pending,,n8n Automation,2026-09-21T20:47:51.074Z,Normal
+GOAL-260921-SHR-5IF6,Daily,22/09/2026,Shreyash,UI Input / Manager,Deploy the new explicit-mapping n8n workflow.,24/09/2026,Pending,,n8n Automation,2026-09-21T20:49:18.178Z,Normal
+GOAL-260921-GAN-O3YV,Daily,22/09/2026,Ganesh,UI Input / Manager,Fix login dashboard role access bug before demo.,23/09/2026,Pending,,n8n Automation,2026-09-21T20:49:18.178Z,Normal
+GOAL-260921-SHR-5YIO,Daily,22/09/2026,Shruti,UI Input / Manager,Finalize list of German manufacturing vendors.,23/09/2026,Pending,,n8n Automation,2026-09-21T20:49:18.178Z,Normal
+GOAL-260921-VAI-N6YJ,Daily,22/09/2026,Vaishnavi,UI Input / Manager,Complete thumbnail drafts for the YouTube B2B videos.,25/09/2026,Pending,,n8n Automation,2026-09-21T20:49:18.178Z,Normal
