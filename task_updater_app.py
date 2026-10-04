@@ -4,6 +4,7 @@ import json
 import time
 import os
 import sys
+import threading
 from tkinter import messagebox
 from config import COLORS, FONTS, DEPARTMENTS
 
@@ -11,6 +12,25 @@ from config import COLORS, FONTS, DEPARTMENTS
 FONTS = {
     key: (val[0], val[1] * 2, *val[2:]) if isinstance(val, (tuple, list)) else val
     for key, val in FONTS.items()
+}
+
+COLORS = {
+    "bg": "#F6F8FB",
+    "card_bg": "#FFFFFF",
+    "sidebar_bg": "#F9FAFC",
+    "input_bg": "#FFFFFF",
+    "accent": "#2563EB",
+    "accent_hover": "#1d4ed8",
+    "highlight": "#EF4444",
+    "highlight_hover": "#dc2626",
+    "text_main": "#172033",
+    "text_dim": "#64748B",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "error": "#EF4444",
+    "border": "#E2E8F0",
+    "primary_navy": "#172B4D",
+    "info": "#3B82F6"
 }
 from services.n8n_client import N8nClient
 from services.sheets_client import SheetsClient
@@ -77,6 +97,72 @@ def save_recent_updates(updates_dict):
         pass
 
 
+class ModernComboBox(ctk.CTkComboBox):
+    """Clean, light-themed combobox with no text editing cursor and seamless white dropdown styling."""
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("fg_color", "#FFFFFF")
+        kwargs.setdefault("button_color", "#FFFFFF")
+        kwargs.setdefault("button_hover_color", "#F8FAFC")
+        kwargs.setdefault("border_color", COLORS["border"])
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("dropdown_fg_color", "#FFFFFF")
+        kwargs.setdefault("dropdown_hover_color", "#F1F5F9")
+        kwargs.setdefault("dropdown_text_color", COLORS["text_main"])
+        kwargs.setdefault("text_color", COLORS["text_main"])
+        super().__init__(*args, **kwargs)
+        self.configure(state="readonly")
+
+        try:
+            self._canvas.itemconfig("border_parts_right",
+                                    outline=self._apply_appearance_mode(self._border_color),
+                                    fill=self._apply_appearance_mode(self._border_color))
+        except Exception:
+            pass
+
+        try:
+            self._entry.configure(cursor="hand2", insertwidth=0, selectbackground="#FFFFFF",
+                                  selectforeground=COLORS["text_main"], takefocus=0)
+            self._entry.bind("<Button-1>", self._on_entry_click)
+        except Exception:
+            pass
+
+    def _on_entry_click(self, event=None):
+        if self._dropdown_menu.is_open():
+            self._dropdown_menu.close()
+            self._close_on_next_click = False
+        elif self._state != tk.DISABLED and len(self._values) > 0:
+            self._open_dropdown_menu()
+        return "break"
+
+    def _draw(self, no_color_updates=False):
+        super()._draw(no_color_updates)
+        try:
+            self._canvas.itemconfig("border_parts_right",
+                                    outline=self._apply_appearance_mode(self._border_color),
+                                    fill=self._apply_appearance_mode(self._border_color))
+        except Exception:
+            pass
+
+    def _on_enter(self, event=0):
+        super()._on_enter(event)
+        self._close_on_next_click = self._dropdown_menu.is_open()
+        if self._hover is True and len(self._values) > 0:
+            self._canvas.configure(cursor="hand2")
+            self._canvas.itemconfig("inner_parts_right",
+                                    outline=self._apply_appearance_mode(self._button_hover_color),
+                                    fill=self._apply_appearance_mode(self._button_hover_color))
+
+    def _on_leave(self, event=0):
+        super()._on_leave(event)
+        self._canvas.configure(cursor="arrow")
+        self._canvas.itemconfig("inner_parts_right",
+                                outline=self._apply_appearance_mode(self._button_color),
+                                fill=self._apply_appearance_mode(self._button_color))
+        self._canvas.itemconfig("border_parts_right",
+                                outline=self._apply_appearance_mode(self._border_color),
+                                fill=self._apply_appearance_mode(self._border_color))
+
+
 # ═════════════════════════════════════════════════════════════════════════
 # Main Application
 # ═════════════════════════════════════════════════════════════════════════
@@ -127,23 +213,15 @@ class TaskUpdaterApp(ctk.CTk):
         ctk.CTkLabel(card, text="Please select your department and name",
                      font=FONTS["body"], text_color=COLORS["text_dim"]).pack(pady=(0, 20), padx=50)
 
-        self.login_combo_dept = ctk.CTkComboBox(
+        self.login_combo_dept = ModernComboBox(
             card, values=list(self.departments.keys()),
             command=self.on_login_dept_select, width=400, height=48,
-            font=FONTS["body"], dropdown_font=FONTS["body"], corner_radius=8,
-            fg_color="#ffffff", border_color="#cbd5e1", border_width=1,
-            button_color="#64748b", button_hover_color="#475569",
-            dropdown_hover_color="#f1f5f9", dropdown_fg_color="#ffffff",
-            dropdown_text_color=COLORS["text_main"], text_color=COLORS["text_main"])
+            font=FONTS["body"], dropdown_font=FONTS["body"], corner_radius=8)
         self.login_combo_dept.pack(pady=(0, 15), padx=50)
 
-        self.login_combo_person = ctk.CTkComboBox(
+        self.login_combo_person = ModernComboBox(
             card, values=[], width=400, height=48,
-            font=FONTS["body"], dropdown_font=FONTS["body"], corner_radius=8,
-            fg_color="#ffffff", border_color="#cbd5e1", border_width=1,
-            button_color="#64748b", button_hover_color="#475569",
-            dropdown_hover_color="#f1f5f9", dropdown_fg_color="#ffffff",
-            dropdown_text_color=COLORS["text_main"], text_color=COLORS["text_main"])
+            font=FONTS["body"], dropdown_font=FONTS["body"], corner_radius=8)
         self.login_combo_person.pack(pady=(0, 25), padx=50)
 
         ctk.CTkButton(card, text="Continue", font=FONTS["body_bold"],
@@ -179,63 +257,78 @@ class TaskUpdaterApp(ctk.CTk):
 
     def setup_main_ui(self):
         # ── Header bar ──
-        header_bar = ctk.CTkFrame(self, fg_color=COLORS["card_bg"], corner_radius=0, height=56)
+        header_bar = ctk.CTkFrame(self, fg_color=COLORS["card_bg"], corner_radius=0, height=84,
+                                  border_width=1, border_color=COLORS["border"])
         header_bar.pack(fill="x")
         header_bar.pack_propagate(False)
 
-        ctk.CTkLabel(header_bar, text=f"👤  {self.current_user}",
-                     font=FONTS["subheader"], text_color=COLORS["text_main"]).pack(side="left", padx=20)
-        ctk.CTkLabel(header_bar, text=f"Department: {self.current_dept}",
-                     font=FONTS["body"], text_color=COLORS["text_dim"]).pack(side="left", padx=(0, 20))
+        left_header = ctk.CTkFrame(header_bar, fg_color="transparent")
+        left_header.pack(side="left", padx=24, pady=8)
+        
+        avatar_lbl = ctk.CTkLabel(left_header, text="👤", font=("Segoe UI", 28))
+        avatar_lbl.pack(side="left", padx=(0, 12))
+        
+        user_info = ctk.CTkFrame(left_header, fg_color="transparent")
+        user_info.pack(side="left")
+        ctk.CTkLabel(user_info, text=self.current_user, font=FONTS["body_bold"], text_color=COLORS["text_main"]).pack(anchor="w")
+        ctk.CTkLabel(user_info, text=self.current_dept, font=FONTS["small"], text_color=COLORS["text_dim"]).pack(anchor="w")
 
         btn_frame = ctk.CTkFrame(header_bar, fg_color="transparent")
-        btn_frame.pack(side="right", padx=15)
+        btn_frame.pack(side="right", padx=24, pady=8)
 
-        ctk.CTkButton(btn_frame, text="＋ Add Task", width=120, height=36,
-                      font=FONTS["body_bold"], fg_color=COLORS["accent"],
+        ctk.CTkButton(btn_frame, text="＋ Add Task", width=110, height=36,
+                      font=FONTS["body_bold"], fg_color=COLORS["accent"], text_color="#FFFFFF", corner_radius=6,
                       hover_color=COLORS["accent_hover"],
-                      command=self._show_add_task_dialog).pack(side="left", padx=(0, 8))
+                      command=self._show_add_task_dialog).pack(side="left", padx=(0, 12))
 
-        ctk.CTkButton(btn_frame, text="↻ Refresh", width=100, height=36,
-                      font=FONTS["body_bold"], fg_color="#475569",
-                      hover_color="#334155",
+        ctk.CTkButton(btn_frame, text="↻ Refresh", width=90, height=36,
+                      font=FONTS["body_bold"], fg_color="#FFFFFF", text_color=COLORS["primary_navy"], corner_radius=6,
+                      border_width=1, border_color=COLORS["border"], hover_color=COLORS["bg"],
                       command=self._full_refresh).pack(side="left")
 
         # ── Scrollable body ──
         self.body_scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.body_scroll.pack(fill="both", expand=True, padx=15, pady=10)
+        self.body_scroll.pack(fill="both", expand=True, padx=24, pady=16)
         self.body_scroll.grid_columnconfigure(0, weight=1)
 
-        # All sub-sections are built inside the scroll
         self._build_dashboard_content()
-
-    # ── Build / rebuild everything inside the scroll ─────────────────────
 
     def _build_dashboard_content(self):
         for w in self.body_scroll.winfo_children():
             w.destroy()
 
-        # Fetch data
-        self._fetch_tasks_data()
+        loading_lbl = ctk.CTkLabel(self.body_scroll, text="Loading data, please wait...", font=FONTS["body"], text_color=COLORS["text_dim"])
+        loading_lbl.pack(pady=40)
+        
+        def fetch_data_thread():
+            try:
+                self._fetch_tasks_data()
+                ext_requests = get_requests_for_employee(self.current_user or "")
+            except Exception as e:
+                print(f"Error fetching data: {e}")
+                ext_requests = []
+            self.after(0, lambda: self._render_dashboard_content(loading_lbl, ext_requests))
+            
+        threading.Thread(target=fetch_data_thread, daemon=True).start()
 
+    def _render_dashboard_content(self, loading_lbl, ext_requests):
+        if loading_lbl.winfo_exists():
+            loading_lbl.destroy()
+            
         today = datetime.now().date()
         all_tasks = self.current_tasks
-        ext_requests = get_requests_for_employee(self.current_user or "")
 
-        # Build approved extensions map for deadline overrides
         self._approved_ext = {}
         for req in ext_requests:
             if req.get("status") == "Approved":
                 self._approved_ext[req["task_id"]] = req.get("manager_deadline") or req.get("requested_deadline")
 
-        # Compute effective deadlines for each task
         for t in all_tasks:
             eff_dl = self._approved_ext.get(t.task_id, t.deadline)
             t._effective_deadline = eff_dl
             t._effective_deadline_date = _parse_deadline(eff_dl)
             t._is_extended = t.task_id in self._approved_ext
 
-        # ── KPI computation ──
         active_tasks = [t for t in all_tasks if t.status.lower() not in ("completed", "done")]
         completed_tasks = [t for t in all_tasks if t.status.lower() in ("completed", "done")]
         overdue_tasks = [t for t in active_tasks if t._effective_deadline_date and t._effective_deadline_date < today]
@@ -247,8 +340,8 @@ class TaskUpdaterApp(ctk.CTk):
         high_priority = [t for t in active_tasks if t.priority.lower() in ("high", "urgent")]
         pending_ext = [r for r in ext_requests if r["status"] == "Pending"]
 
-        # ── 1. KPI Cards ──
         self._build_kpi_section(
+            self.body_scroll,
             total=len(all_tasks),
             active=len(active_tasks),
             completed=len(completed_tasks),
@@ -259,184 +352,93 @@ class TaskUpdaterApp(ctk.CTk):
             pending_extensions=len(pending_ext),
         )
 
-        # ── 2. Attention Required ──
-        attention_tasks = []
-        for t in active_tasks:
-            reasons = []
-            if t._effective_deadline_date:
-                days_left = (t._effective_deadline_date - today).days
-                if days_left < 0:
-                    reasons.append(f"🔴 {abs(days_left)} day(s) overdue")
-                elif days_left == 0:
-                    reasons.append("🟠 Due today")
-                elif days_left <= 2:
-                    reasons.append(f"🟡 Due in {days_left} day(s)")
-            if t.priority.lower() in ("high", "urgent"):
-                reasons.append(f"⚡ {t.priority} priority")
-            if reasons:
-                attention_tasks.append((t, reasons))
+        columns_frame = ctk.CTkFrame(self.body_scroll, fg_color="transparent")
+        columns_frame.pack(fill="both", expand=True)
+        columns_frame.grid_columnconfigure(0, weight=7)
+        columns_frame.grid_columnconfigure(1, weight=3)
 
-        if attention_tasks:
-            self._build_attention_section(attention_tasks)
+        left_col = ctk.CTkFrame(columns_frame, fg_color="transparent")
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
-        # ── 3. Task List with sort / filter bar ──
-        self._build_task_list_section(all_tasks, today)
+        right_col = ctk.CTkFrame(columns_frame, fg_color="transparent")
+        right_col.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
-        # ── 4. Submit button ──
-        self.btn_submit_updates = ctk.CTkButton(
-            self.body_scroll, text="Update Statuses Directly",
-            font=FONTS["body_bold"], fg_color="#1e293b",
-            hover_color="#334155", height=44,
-            command=self.submit_updates_only)
-        self.btn_submit_updates.pack(fill="x", padx=5, pady=(10, 5))
+        self._build_task_list_section(left_col, all_tasks, today)
+        self._build_extension_section(right_col, ext_requests)
 
-        # ── 5. Extension Requests ──
-        self._build_extension_section(ext_requests)
+    def _build_kpi_section(self, parent, **kpis):
+        kpi_outer = ctk.CTkFrame(parent, fg_color="transparent")
+        kpi_outer.pack(fill="x", pady=(0, 20))
 
-    # ── KPI Section ──────────────────────────────────────────────────────
-
-    def _build_kpi_section(self, **kpis):
-        kpi_outer = ctk.CTkFrame(self.body_scroll, fg_color="transparent")
-        kpi_outer.pack(fill="x", pady=(0, 10))
-
-        # Using a sleek, muted gray/slate palette instead of bright rainbow colors
         cards_data = [
-            ("Total Tasks",      str(kpis["total"]),             COLORS["text_main"]),
-            ("Active",           str(kpis["active"]),             "#475569"),
-            ("Completed",        str(kpis["completed"]),          "#059669"),
-            ("Overdue",          str(kpis["overdue"]),            "#dc2626"),
-            ("Due Today",        str(kpis["due_today"]),          "#d97706"),
-            ("Due This Week",    str(kpis["due_this_week"]),      "#64748b"),
-            ("High / Urgent",    str(kpis["high_priority"]),      "#991b1b"),
-            ("Pending Ext.",     str(kpis["pending_extensions"]), "#0d9488"),
+            ("Total Tasks",      str(kpis["total"]),             "#F1F5F9", "#0F172A"),
+            ("Active",           str(kpis["active"]),             "#EFF6FF", "#1E3A8A"),
+            ("Completed",        str(kpis["completed"]),          "#ECFDF5", "#065F46"),
+            ("Overdue",          str(kpis["overdue"]),            "#FEF2F2", "#991B1B"),
+            ("Due Today",        str(kpis["due_today"]),          "#FFFBEB", "#92400E"),
+            ("Due This Week",    str(kpis["due_this_week"]),      "#F8FAFC", "#334155"),
+            ("High / Urgent",    str(kpis["high_priority"]),      "#FEF2F2", "#991B1B"),
+            ("Pending Ext.",     str(kpis["pending_extensions"]), "#F5F3FF", "#4C1D95"),
         ]
 
-        # Two rows of four
         for row_idx in range(2):
             row_frame = ctk.CTkFrame(kpi_outer, fg_color="transparent")
-            row_frame.pack(fill="x", pady=3)
+            row_frame.pack(fill="x", pady=6)
+            for col_idx in range(4):
+                row_frame.grid_columnconfigure(col_idx, weight=1, uniform="kpi_col")
+                
             for col_idx in range(4):
                 i = row_idx * 4 + col_idx
                 if i >= len(cards_data):
                     break
-                label, value, color = cards_data[i]
-                row_frame.grid_columnconfigure(col_idx, weight=1)
-                card = ctk.CTkFrame(row_frame, fg_color=COLORS["card_bg"],
-                                    corner_radius=8, border_width=1, border_color=COLORS["border"])
-                card.grid(row=0, column=col_idx, sticky="ew", padx=4, pady=2)
+                label, value, bg_color, txt_color = cards_data[i]
+                
+                card = ctk.CTkFrame(row_frame, fg_color=bg_color,
+                                    corner_radius=12, border_width=1, border_color=COLORS["border"])
+                card.grid(row=0, column=col_idx, sticky="nsew", padx=8, pady=2)
 
-                # Colored top strip
-                strip = ctk.CTkFrame(card, fg_color=color, height=3, corner_radius=0)
-                strip.pack(fill="x")
+                ctk.CTkLabel(card, text=value, font=(FONTS["header"][0], 32, "bold"),
+                             text_color=txt_color, fg_color="transparent").pack(anchor="w", padx=20, pady=(20, 0))
+                ctk.CTkLabel(card, text=label, font=FONTS["body_bold"],
+                             text_color=txt_color, fg_color="transparent").pack(anchor="w", padx=20, pady=(4, 20))
 
-                ctk.CTkLabel(card, text=value, font=(FONTS["header"][0], FONTS["header"][1], "bold"),
-                             text_color=COLORS["text_main"]).pack(pady=(8, 0))
-                ctk.CTkLabel(card, text=label, font=FONTS["small"],
-                             text_color=COLORS["text_dim"]).pack(pady=(0, 8))
+    def _build_task_list_section(self, parent, all_tasks, today):
+        section = ctk.CTkFrame(parent, fg_color=COLORS["card_bg"],
+                               corner_radius=12, border_width=1, border_color=COLORS["border"])
+        section.pack(fill="both", expand=True)
 
-    # ── Attention Required Section ───────────────────────────────────────
+        hdr = ctk.CTkFrame(section, fg_color="transparent")
+        hdr.pack(fill="x", padx=24, pady=(24, 16))
+        
+        title_frame = ctk.CTkFrame(hdr, fg_color="transparent")
+        title_frame.pack(side="left")
+        ctk.CTkLabel(title_frame, text="My Tasks", font=("Segoe UI", 24, "bold"), text_color=COLORS["text_main"]).pack(anchor="w")
+        ctk.CTkLabel(title_frame, text="Tasks assigned to you and their current status", 
+                     font=FONTS["body"], text_color=COLORS["text_dim"]).pack(anchor="w", pady=(2, 0))
 
-    def _build_attention_section(self, attention_tasks):
-        section = ctk.CTkFrame(self.body_scroll, fg_color=COLORS["card_bg"],
-                               corner_radius=8, border_width=1, border_color="#fee2e2")
-        section.pack(fill="x", pady=(0, 10), padx=2)
-
-        header = ctk.CTkFrame(section, fg_color="#fef2f2", corner_radius=8)
-        header.pack(fill="x", padx=6, pady=6)
-        ctk.CTkLabel(header, text="⚠  Attention Required", font=FONTS["subheader"],
-                     text_color="#991b1b").pack(anchor="w", padx=15, pady=8)
-
-        for task, reasons in attention_tasks[:8]:  # cap at 8 to avoid clutter
-            row = ctk.CTkFrame(section, fg_color="transparent")
-            row.pack(fill="x", padx=12, pady=4)
-            row.grid_columnconfigure(1, weight=1)
-
-            # Priority badge
-            if task.priority.lower() == "urgent":
-                badge_color = "#dc2626"
-            elif task.priority.lower() == "high":
-                badge_color = "#475569"
-            else:
-                badge_color = COLORS["text_dim"]
-
-            ctk.CTkLabel(row, text=task.priority, font=(FONTS["small"][0], FONTS["small"][1], "bold"),
-                         text_color="white", fg_color=badge_color,
-                         corner_radius=4, width=70, height=22).grid(row=0, column=0, padx=(0, 8))
-
-            # Task description (truncated)
-            desc = task.description
-            if len(desc) > 70:
-                desc = desc[:70] + "…"
-            ctk.CTkLabel(row, text=f"[{task.task_id}] {desc}",
-                         font=FONTS["body"], text_color=COLORS["text_main"],
-                         anchor="w").grid(row=0, column=1, sticky="w")
-
-            # Reason tags
-            reasons_str = "  ·  ".join(reasons)
-            ctk.CTkLabel(row, text=reasons_str, font=FONTS["small"],
-                         text_color=COLORS["error"]).grid(row=0, column=2, padx=(10, 5))
-
-        # Bottom padding
-        ctk.CTkFrame(section, fg_color="transparent", height=6).pack()
-
-    # ── Task List Section (Sort + Filter + Cards) ────────────────────────
-
-    def _build_task_list_section(self, all_tasks, today):
-        section = ctk.CTkFrame(self.body_scroll, fg_color=COLORS["card_bg"],
-                               corner_radius=8, border_width=1, border_color=COLORS["border"])
-        section.pack(fill="x", pady=(0, 5), padx=2)
-
-        # ── Toolbar: Filter + Sort ──
-        toolbar = ctk.CTkFrame(section, fg_color="transparent")
-        toolbar.pack(fill="x", padx=15, pady=(12, 8))
-
-        ctk.CTkLabel(toolbar, text="Tasks", font=FONTS["subheader"],
-                     text_color=COLORS["text_main"]).pack(side="left")
-
-        # Sort dropdown
-        self.sort_combo = ctk.CTkComboBox(
-            toolbar,
-            values=["Deadline ↑ (soonest)", "Deadline ↓ (farthest)",
-                    "Priority ↓ (urgent first)", "Assigned Date ↑"],
-            width=230, height=36, font=FONTS["small"],
-            dropdown_font=FONTS["small"], corner_radius=6,
-            fg_color="#f8fafc", border_color="#cbd5e1", border_width=1,
-            button_color="#1e293b", button_hover_color="#334155",
-            dropdown_hover_color="#e2e8f0", dropdown_fg_color="#ffffff",
-            dropdown_text_color=COLORS["text_main"], text_color=COLORS["text_main"],
-            command=lambda _: self._on_sort_filter_change())
-        self.sort_combo.set("Deadline ↑ (soonest)")
-        self.sort_combo.pack(side="right", padx=(4, 0))
-
-        ctk.CTkLabel(toolbar, text="Sort:", font=FONTS["small"],
-                     text_color=COLORS["text_dim"]).pack(side="right", padx=(12, 4))
-
-        # Filter dropdown
-        self.filter_combo = ctk.CTkComboBox(
-            toolbar,
-            values=["Active", "All", "Completed", "Overdue", "Delayed", "High Priority"],
-            width=160, height=36, font=FONTS["small"],
-            dropdown_font=FONTS["small"], corner_radius=6,
-            fg_color="#f8fafc", border_color="#cbd5e1", border_width=1,
-            button_color="#1e293b", button_hover_color="#334155",
-            dropdown_hover_color="#e2e8f0", dropdown_fg_color="#ffffff",
-            dropdown_text_color=COLORS["text_main"], text_color=COLORS["text_main"],
+        toolbar = ctk.CTkFrame(hdr, fg_color="transparent")
+        toolbar.pack(side="right", pady=4)
+        
+        self.filter_combo = ModernComboBox(
+            toolbar, values=["Active", "All", "Completed", "Overdue", "Delayed", "High Priority"],
+            width=170, height=36, font=FONTS["body"], dropdown_font=FONTS["body"], corner_radius=6,
             command=lambda _: self._on_sort_filter_change())
         self.filter_combo.set(self._filter_status)
-        self.filter_combo.pack(side="right", padx=(4, 0))
+        self.filter_combo.pack(side="right", padx=(8, 0))
 
-        ctk.CTkLabel(toolbar, text="Filter:", font=FONTS["small"],
-                     text_color=COLORS["text_dim"]).pack(side="right", padx=(0, 4))
-
-        # ── Task cards container ──
+        self.sort_combo = ModernComboBox(
+            toolbar, values=["Deadline ↑", "Deadline ↓", "Priority ↓", "Assigned ↑"],
+            width=170, height=36, font=FONTS["body"], dropdown_font=FONTS["body"], corner_radius=6,
+            command=lambda _: self._on_sort_filter_change())
+        self.sort_combo.set("Deadline ↑")
+        self.sort_combo.pack(side="right", padx=(8, 0))
+        
         self.tasks_container = ctk.CTkFrame(section, fg_color="transparent")
-        self.tasks_container.pack(fill="x", padx=10, pady=(5, 12))
+        self.tasks_container.pack(fill="both", expand=True, padx=24, pady=(0, 24))
         self.tasks_container.grid_columnconfigure(0, weight=1)
 
         self._render_sorted_filtered_tasks(all_tasks, today)
-
     def _on_sort_filter_change(self):
-        """Re-render tasks when sort or filter changes."""
         self._filter_status = self.filter_combo.get()
         today = datetime.now().date()
         self._render_sorted_filtered_tasks(self.current_tasks, today)
@@ -447,7 +449,6 @@ class TaskUpdaterApp(ctk.CTk):
         self.status_vars.clear()
         self.modified_task_info.clear()
 
-        # 1. Filter
         filt = self.filter_combo.get() if hasattr(self, "filter_combo") else self._filter_status
         if filt == "Active":
             tasks = [t for t in all_tasks if t.status.lower() not in ("completed", "done")]
@@ -463,11 +464,10 @@ class TaskUpdaterApp(ctk.CTk):
             tasks = [t for t in all_tasks
                      if t.status.lower() not in ("completed", "done")
                      and t.priority.lower() in ("high", "urgent")]
-        else:  # All
+        else:
             tasks = list(all_tasks)
 
-        # 2. Sort
-        sort_val = self.sort_combo.get() if hasattr(self, "sort_combo") else "Deadline ↑ (soonest)"
+        sort_val = self.sort_combo.get() if hasattr(self, "sort_combo") else "Deadline ↑"
         far_future = datetime(2099, 12, 31).date()
         far_past = datetime(2000, 1, 1).date()
 
@@ -476,90 +476,87 @@ class TaskUpdaterApp(ctk.CTk):
         elif "Deadline ↓" in sort_val:
             tasks.sort(key=lambda t: t._effective_deadline_date or far_past, reverse=True)
         elif "Priority" in sort_val:
-            prio_order = {"urgent": 0, "high": 1, "normal": 2, "low": 3}
+            prio_order = {"urgent": 0, "high": 1, "medium": 2, "normal": 2, "low": 3}
             tasks.sort(key=lambda t: prio_order.get(t.priority.lower(), 9))
         elif "Assigned" in sort_val:
             tasks.sort(key=lambda t: _parse_deadline(t.date) or far_past)
 
         if not tasks:
-            ctk.CTkLabel(self.tasks_container, text="No tasks match the current filter.",
-                         font=FONTS["body"], text_color=COLORS["text_dim"]).pack(pady=20)
+            empty_frame = ctk.CTkFrame(self.tasks_container, fg_color="transparent")
+            empty_frame.pack(pady=40)
+            ctk.CTkLabel(empty_frame, text="No active tasks", font=FONTS["subheader"], text_color=COLORS["text_main"]).pack()
+            ctk.CTkLabel(empty_frame, text="You currently have no tasks matching this filter.", font=FONTS["body"], text_color=COLORS["text_dim"]).pack(pady=(5, 15))
+            ctk.CTkButton(empty_frame, text="View All Tasks", font=FONTS["body_bold"], fg_color="transparent",
+                          border_width=1, border_color=COLORS["border"], text_color=COLORS["text_main"], hover_color=COLORS["bg"],
+                          command=lambda: [self.filter_combo.set("All"), self._on_sort_filter_change()]).pack()
             return
 
         for idx, task in enumerate(tasks):
             self._build_task_row(idx, task, today)
 
     def _build_task_row(self, idx, task, today):
-        row = ctk.CTkFrame(self.tasks_container, fg_color=COLORS["input_bg"],
-                           border_color=COLORS["border"], border_width=1, corner_radius=6)
-        row.grid(row=idx, column=0, sticky="ew", pady=4, padx=4)
+        row = ctk.CTkFrame(self.tasks_container, fg_color="transparent", border_width=0)
+        row.grid(row=idx, column=0, sticky="ew", pady=4)
         row.grid_columnconfigure(0, weight=1)
+
+        inner = ctk.CTkFrame(row, fg_color=COLORS["card_bg"], border_width=1, border_color=COLORS["border"], corner_radius=8)
+        inner.grid(row=0, column=0, sticky="ew", pady=2)
+        inner.grid_columnconfigure(1, weight=1)
 
         def bind_double_click(widget, t=task):
             widget.bind("<Double-1>", lambda event, tk=t: self.show_task_details_dialog(tk))
-        bind_double_click(row)
+        bind_double_click(inner)
 
-        info_frame = ctk.CTkFrame(row, fg_color="transparent")
-        info_frame.grid(row=0, column=0, sticky="w", padx=10, pady=10)
-        bind_double_click(info_frame)
+        left_info = ctk.CTkFrame(inner, fg_color="transparent")
+        left_info.grid(row=0, column=0, padx=20, pady=16, sticky="w")
+        
+        ctk.CTkLabel(left_info, text=task.task_id, font=FONTS["small"], text_color=COLORS["text_dim"]).pack(anchor="w")
+        
+        prio_color = COLORS["error"] if task.priority.lower() in ("high", "urgent") else (COLORS["warning"] if task.priority.lower() in ("medium", "normal") else COLORS["text_dim"])
+        ctk.CTkLabel(left_info, text=task.priority.upper(), font=("Segoe UI", 9, "bold"), text_color=prio_color).pack(anchor="w", pady=(2, 0))
 
-        # Task ID + description
-        lbl_desc = ctk.CTkLabel(info_frame, text=f"[{task.task_id}] {task.description}",
-                                font=FONTS["body_bold"], text_color=COLORS["text_main"],
-                                justify="left", wraplength=700)
+        mid_info = ctk.CTkFrame(inner, fg_color="transparent")
+        mid_info.grid(row=0, column=1, padx=16, pady=16, sticky="w")
+        desc = task.description
+        if len(desc) > 80: desc = desc[:80] + "..."
+        lbl_desc = ctk.CTkLabel(mid_info, text=desc, font=("Segoe UI", 18, "bold"), text_color=COLORS["text_main"], justify="left")
         lbl_desc.pack(anchor="w")
         bind_double_click(lbl_desc)
 
-        # Dates row
+        right_info = ctk.CTkFrame(inner, fg_color="transparent")
+        right_info.grid(row=0, column=2, padx=20, pady=16, sticky="e")
+        
         eff_dl = task._effective_deadline
         dl_str = format_date(eff_dl)
-        if task._is_extended:
-            dl_str += " (Extended)"
+        dl_color = COLORS["text_dim"]
+        if task._effective_deadline_date and task._effective_deadline_date < today and task.status.lower() not in ("completed", "done"):
+            dl_color = COLORS["error"]
+        
+        ctk.CTkLabel(right_info, text=f"Due: {dl_str}", font=FONTS["small"], text_color=dl_color).pack(anchor="e", pady=(0, 4))
 
-        dates_str = f"Assigned: {format_date(task.date)}  |  Deadline: {dl_str}"
-        if task.priority.lower() in ("high", "urgent"):
-            dates_str += f"  |  Priority: {task.priority}"
-        lbl_dates = ctk.CTkLabel(info_frame, text=dates_str, font=FONTS["small"],
-                                 text_color=COLORS["text_dim"])
-        lbl_dates.pack(anchor="w", pady=(4, 0))
-        bind_double_click(lbl_dates)
+        status_color = COLORS["success"] if task.status.lower() in ("completed", "done") else (COLORS["info"] if task.status.lower() == "active" else COLORS["warning"])
+        ctk.CTkLabel(right_info, text=task.status.upper(), font=("Segoe UI", 10, "bold"), text_color=status_color).pack(anchor="e")
+        
+        actions_frame = ctk.CTkFrame(inner, fg_color="transparent")
+        actions_frame.grid(row=0, column=3, padx=20, pady=16, sticky="e")
 
-        # Overdue warning
-        if task._effective_deadline_date:
-            days_past = (today - task._effective_deadline_date).days
-            if days_past > 0:
-                lbl_timer = ctk.CTkLabel(info_frame,
-                                         text=f"⚠ {days_past} days past deadline!",
-                                         font=FONTS["small"], text_color=COLORS["error"])
-                lbl_timer.pack(anchor="w")
-                bind_double_click(lbl_timer)
-            elif days_past == 0:
-                lbl_timer = ctk.CTkLabel(info_frame, text="📌 Due today",
-                                         font=FONTS["small"], text_color=COLORS["warning"])
-                lbl_timer.pack(anchor="w")
-                bind_double_click(lbl_timer)
+        status_var = ctk.StringVar(value="Status...")
+        status_combo = ModernComboBox(actions_frame, values=["Pending", "Delayed", "Completed"], 
+                                      variable=status_var, width=140, height=32, font=FONTS["small"], dropdown_font=FONTS["small"],
+                                      corner_radius=6)
+        status_combo.pack(side="left", padx=(0, 8))
+        
+        btn_update = ctk.CTkButton(actions_frame, text="Update", width=60, height=32, font=FONTS["small"], corner_radius=6,
+                                   fg_color=COLORS["accent"], text_color="#FFFFFF", hover_color=COLORS["accent_hover"])
+        btn_update.configure(command=lambda t=task, c=status_combo, b=btn_update: self.do_inline_update(t, c.get(), b))
+        btn_update.pack(side="left", padx=(0, 8))
 
-        # Status combo
-        var = ctk.StringVar(value=task.status)
-        self.status_vars[task.task_id] = var
+        btn_view = ctk.CTkButton(actions_frame, text="View", width=60, height=32, font=FONTS["small"], corner_radius=6,
+                                 fg_color="transparent", border_width=1, border_color=COLORS["border"],
+                                 text_color=COLORS["text_main"], hover_color=COLORS["bg"],
+                                 command=lambda t=task: self.show_task_details_dialog(t))
+        btn_view.pack(side="left")
 
-        def on_status_change(new_val, t=task, v=var):
-            if new_val == "Delayed":
-                self.prompt_extension_request(t, v)
-            else:
-                if t.task_id in self.modified_task_info:
-                    del self.modified_task_info[t.task_id]
-
-        combo = ctk.CTkComboBox(
-            row, values=["Pending", "Delayed", "Completed"],
-            variable=var, width=220, height=44,
-            font=FONTS["body_bold"], dropdown_font=FONTS["body"],
-            corner_radius=8, fg_color="#ffffff", border_color="#cbd5e1", border_width=1,
-            button_color="#64748b", button_hover_color="#475569",
-            dropdown_hover_color="#f1f5f9", dropdown_fg_color="#ffffff",
-            dropdown_text_color=COLORS["text_main"], text_color=COLORS["text_main"],
-            command=on_status_change)
-        combo.grid(row=0, column=1, padx=15, pady=10)
 
     # ── Task Detail Dialog ───────────────────────────────────────────────
 
@@ -622,14 +619,14 @@ class TaskUpdaterApp(ctk.CTk):
     def prompt_extension_request(self, task, var):
         dialog = ctk.CTkToplevel(self)
         dialog.title("Request Deadline Extension")
-        dialog.geometry("480x540")
+        dialog.geometry("540x580")
         dialog.configure(fg_color=COLORS["bg"])
         dialog.transient(self)
         dialog.grab_set()
 
         dialog.update_idletasks()
-        x = self.winfo_rootx() + (self.winfo_width() // 2) - (480 // 2)
-        y = self.winfo_rooty() + (self.winfo_height() // 2) - (540 // 2)
+        x = self.winfo_rootx() + (self.winfo_width() // 2) - (540 // 2)
+        y = self.winfo_rooty() + (self.winfo_height() // 2) - (580 // 2)
         dialog.geometry(f"+{x}+{y}")
 
         ctk.CTkLabel(dialog, text=f"Task: [{task.task_id}]", font=FONTS["body_bold"],
@@ -652,7 +649,7 @@ class TaskUpdaterApp(ctk.CTk):
         deadline_entry.pack(padx=20, pady=(0, 10), anchor="w")
 
         ctk.CTkLabel(dialog, text="⚠ Your request will be sent to the manager for approval.",
-                     font=FONTS["small"], text_color=COLORS["warning"]).pack(padx=20, pady=(0, 10), anchor="w")
+                     font=FONTS["small"], text_color=COLORS["warning"], wraplength=500, justify="left").pack(padx=20, pady=(0, 10), anchor="w")
 
         def submit():
             reason = reason_text.get("1.0", "end").strip()
@@ -661,20 +658,40 @@ class TaskUpdaterApp(ctk.CTk):
                 messagebox.showwarning("Missing Info", "Please provide a reason for the extension.")
                 return
             person_name = self.current_user
-            req_id = submit_extension_request(
-                task_id=task.task_id, task_description=task.description,
-                employee_name=person_name, current_deadline=task.deadline,
-                requested_deadline=new_deadline, reason=reason,
-                department=self.current_dept or "")
-            self.modified_task_info[task.task_id] = {
-                "reason": f"{reason} (Old Deadline: {task.deadline}) [Extension Request: {req_id}]",
-                "deadline": task.deadline
-            }
-            dialog.destroy()
-            messagebox.showinfo("Request Sent",
-                                f"Extension request [{req_id}] has been submitted.\n"
-                                "The manager will review it on the dashboard.")
-            self._full_refresh()
+            
+            for child in btn_frame.winfo_children():
+                if isinstance(child, ctk.CTkButton) and child.cget("text") == "Submit Request":
+                    child.configure(state="disabled")
+
+            def submit_thread():
+                try:
+                    req_id = submit_extension_request(
+                        task_id=task.task_id, task_description=task.description,
+                        employee_name=person_name, current_deadline=task.deadline,
+                        requested_deadline=new_deadline, reason=reason,
+                        department=self.current_dept or "")
+                    self.after(0, lambda: on_submit_success(req_id))
+                except Exception as e:
+                    self.after(0, lambda: on_submit_error(e))
+
+            def on_submit_success(req_id):
+                self.modified_task_info[task.task_id] = {
+                    "reason": f"{reason} (Old Deadline: {task.deadline}) [Extension Request: {req_id}]",
+                    "deadline": task.deadline
+                }
+                dialog.destroy()
+                messagebox.showinfo("Request Sent",
+                                    f"Extension request [{req_id}] has been submitted.\n"
+                                    "The manager will review it on the dashboard.")
+                self._full_refresh()
+                
+            def on_submit_error(e):
+                messagebox.showerror("Error", f"Failed to submit request:\n{e}")
+                for child in btn_frame.winfo_children():
+                    if isinstance(child, ctk.CTkButton) and child.cget("text") == "Submit Request":
+                        child.configure(state="normal")
+            
+            threading.Thread(target=submit_thread, daemon=True).start()
 
         def cancel():
             var.set(task.status)
@@ -694,69 +711,72 @@ class TaskUpdaterApp(ctk.CTk):
 
     # ── Extension Requests Display ───────────────────────────────────────
 
-    def _build_extension_section(self, ext_requests):
-        section = ctk.CTkFrame(self.body_scroll, fg_color=COLORS["card_bg"],
-                               corner_radius=8, border_width=1, border_color=COLORS["border"])
-        section.pack(fill="x", pady=(10, 5), padx=2)
+    def _build_extension_section(self, parent, ext_requests):
+        section = ctk.CTkFrame(parent, fg_color=COLORS["card_bg"],
+                               corner_radius=12, border_width=1, border_color=COLORS["border"])
+        section.pack(fill="both", expand=True)
 
         hdr = ctk.CTkFrame(section, fg_color="transparent")
-        hdr.pack(fill="x", padx=15, pady=(12, 5))
-        ctk.CTkLabel(hdr, text="My Extension Requests", font=FONTS["subheader"],
-                     text_color=COLORS["text_main"]).pack(side="left")
-        ctk.CTkButton(hdr, text="↻ Refresh", width=80, font=FONTS["small"],
-                      fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"],
-                      height=28, command=self._full_refresh).pack(side="right")
+        hdr.pack(fill="x", padx=24, pady=(24, 16))
+        
+        title_frame = ctk.CTkFrame(hdr, fg_color="transparent")
+        title_frame.pack(side="left")
+        ctk.CTkLabel(title_frame, text="My Extension Requests", font=("Segoe UI", 24, "bold"), text_color=COLORS["text_main"]).pack(anchor="w")
+        ctk.CTkLabel(title_frame, text="Track your deadline change requests", 
+                     font=FONTS["body"], text_color=COLORS["text_dim"]).pack(anchor="w", pady=(2, 0))
 
-        if not ext_requests:
-            ctk.CTkLabel(section, text="No extension requests yet.",
-                         font=FONTS["small"], text_color=COLORS["text_dim"]).pack(pady=10)
-            ctk.CTkFrame(section, fg_color="transparent", height=8).pack()
-            return
+        ctk.CTkButton(hdr, text="↻", width=36, font=FONTS["body_bold"], corner_radius=6,
+                      fg_color="transparent", border_width=1, border_color=COLORS["border"], text_color=COLORS["text_main"], hover_color=COLORS["bg"],
+                      height=36, command=self._full_refresh).pack(side="right")
 
         container = ctk.CTkFrame(section, fg_color="transparent")
-        container.pack(fill="x", padx=10, pady=(5, 12))
-        container.grid_columnconfigure(0, weight=1)
+        container.pack(fill="both", expand=True, padx=24, pady=(0, 24))
+
+        if not ext_requests:
+            ctk.CTkLabel(container, text="No extension requests yet.", font=FONTS["body"], text_color=COLORS["text_dim"]).pack(pady=40)
+            return
 
         for idx, req in enumerate(reversed(ext_requests)):
             status = req["status"]
             if status == "Pending":
-                badge_color, badge_text = COLORS["warning"], "⏳ Pending"
+                badge_color, badge_text = COLORS["warning"], "PENDING"
             elif status == "Approved":
-                badge_color, badge_text = COLORS["success"], "✓ Approved"
+                badge_color, badge_text = COLORS["success"], "APPROVED"
             else:
-                badge_color, badge_text = COLORS["error"], "✗ Rejected"
+                badge_color, badge_text = COLORS["error"], "REJECTED"
 
-            row = ctk.CTkFrame(container, fg_color=COLORS["input_bg"],
-                               border_color=COLORS["border"], border_width=1, corner_radius=6)
-            row.grid(row=idx * 2, column=0, sticky="ew", pady=3, padx=5)
-            row.grid_columnconfigure(1, weight=1)
-
-            ctk.CTkLabel(row, text=badge_text, font=FONTS["small"],
-                         text_color="white", fg_color=badge_color,
-                         corner_radius=4, width=90, height=24).grid(row=0, column=0, padx=(10, 5), pady=8)
-
+            card = ctk.CTkFrame(container, fg_color="transparent", border_width=1, border_color=COLORS["border"], corner_radius=8)
+            card.pack(fill="x", pady=6)
+            
+            top_row = ctk.CTkFrame(card, fg_color="transparent")
+            top_row.pack(fill="x", padx=16, pady=(16, 8))
+            
+            ctk.CTkLabel(top_row, text=badge_text, font=("Segoe UI", 9, "bold"), 
+                         text_color="#FFFFFF", fg_color=badge_color, corner_radius=4, 
+                         width=70, height=22).pack(side="left")
+            
+            ctk.CTkLabel(card, text=req["task_id"], font=FONTS["body_bold"], text_color=COLORS["text_main"]).pack(anchor="w", padx=16)
+            
             desc = req["task_description"]
-            if len(desc) > 50:
-                desc = desc[:50] + "..."
-            ctk.CTkLabel(row, text=f"[{req['task_id']}] {desc}", font=FONTS["small"],
-                         text_color=COLORS["text_main"]).grid(row=0, column=1, sticky="w", padx=5, pady=8)
-
+            if len(desc) > 40: desc = desc[:40] + "..."
+            ctk.CTkLabel(card, text=desc, font=FONTS["body"], text_color=COLORS["text_dim"]).pack(anchor="w", padx=16, pady=(4, 12))
+            
+            bot_row = ctk.CTkFrame(card, fg_color=COLORS["bg"], corner_radius=0)
+            bot_row.pack(fill="x", padx=1, pady=(0, 1))
+            
             if status == "Approved":
                 final_deadline = format_date(req.get("manager_deadline") or req["requested_deadline"])
-                dl_text, dl_color = f"New Deadline: {final_deadline}", COLORS["success"]
+                dl_lbl = f"New Deadline: {final_deadline}"
             elif status == "Rejected":
-                dl_text, dl_color = f"Deadline unchanged: {format_date(req['current_deadline'])}", COLORS["error"]
+                dl_lbl = f"Unchanged: {format_date(req['current_deadline'])}"
             else:
-                dl_text, dl_color = f"Requested: {format_date(req['requested_deadline'])}", COLORS["text_dim"]
-
-            ctk.CTkLabel(row, text=dl_text, font=FONTS["small"],
-                         text_color=dl_color).grid(row=0, column=2, padx=(5, 10), pady=8)
-
+                dl_lbl = f"Requested: {format_date(req['requested_deadline'])}"
+                
+            ctk.CTkLabel(bot_row, text=dl_lbl, font=FONTS["body"], text_color=COLORS["text_main"]).pack(anchor="w", padx=16, pady=10)
+            
             if status != "Pending" and req.get("manager_note"):
-                note_row = ctk.CTkFrame(container, fg_color="transparent")
-                note_row.grid(row=idx * 2 + 1, column=0, sticky="ew", padx=20, pady=(0, 3))
-                ctk.CTkLabel(note_row, text=f"Manager note: {req['manager_note']}",
-                             font=FONTS["small"], text_color=COLORS["text_dim"]).pack(anchor="w")
+                ctk.CTkLabel(card, text=f"Note: {req['manager_note']}", font=FONTS["small"], text_color=COLORS["text_dim"], wraplength=220).pack(anchor="w", padx=16, pady=(0, 12))
+
 
     # ── Add Task Dialog (self-assign only) ───────────────────────────────
 
@@ -810,13 +830,9 @@ class TaskUpdaterApp(ctk.CTk):
         row_prio.pack(fill="x", padx=20, pady=5)
         ctk.CTkLabel(row_prio, text="Priority:", font=FONTS["body_bold"],
                      text_color=COLORS["text_main"], width=140, anchor="w").pack(side="left")
-        prio_combo = ctk.CTkComboBox(row_prio, values=["Low", "Normal", "High", "Urgent"],
-                                     width=200, height=36, font=FONTS["body"],
-                                     dropdown_font=FONTS["body"], corner_radius=6,
-                                     fg_color="#ffffff", border_color="#cbd5e1", border_width=1,
-                                     button_color="#64748b", button_hover_color="#475569",
-                                     dropdown_hover_color="#f1f5f9", dropdown_fg_color="#ffffff",
-                                     dropdown_text_color=COLORS["text_main"], text_color=COLORS["text_main"])
+        prio_combo = ModernComboBox(row_prio, values=["Low", "Normal", "High", "Urgent"],
+                                    width=200, height=36, font=FONTS["body"],
+                                    dropdown_font=FONTS["body"], corner_radius=6)
         prio_combo.set("Normal")
         prio_combo.pack(side="left")
 
@@ -886,59 +902,64 @@ class TaskUpdaterApp(ctk.CTk):
 
     # ── Submit Updates ───────────────────────────────────────────────────
 
-    def submit_updates_only(self):
-        modified_tasks = []
-        for task in self.current_tasks:
-            var = self.status_vars.get(task.task_id)
-            if not var:
-                continue
-            new_status = var.get()
-            if new_status != task.status:
-                mod_info = self.modified_task_info.get(task.task_id, {})
-                task_dict = {
-                    "Task ID": task.task_id,
-                    "Date": task.date,
-                    "Task Description": task.description,
-                    "Assigned To": task.assigned_to,
-                    "Assigned By": task.assigned_by,
-                    "Deadline": mod_info.get("deadline", task.deadline),
-                    "Priority": task.priority,
-                    "Status": new_status,
-                    "Reason": mod_info.get("reason", task.reason),
-                    "Source": task.source,
-                    "Updated By": "UI Input",
-                    "Last Updated": task.last_updated
-                }
-                modified_tasks.append(task_dict)
-
-        if not modified_tasks:
-            messagebox.showinfo("Info", "No task statuses were changed.")
+    def do_inline_update(self, task, new_status, btn_widget):
+        if not new_status or new_status == "Status...":
+            return
+            
+        if new_status == "Delayed":
+            dummy_var = ctk.StringVar(value=task.status)
+            self.prompt_extension_request(task, dummy_var)
             return
 
-        self.btn_submit_updates.configure(state="disabled")
-        try:
-            success = self.n8n_client.submit_live_updates(modified_tasks)
-            if success:
-                messagebox.showinfo("Success", "Task statuses updated successfully.")
-                recent_updates = load_recent_updates()
-                for task_dict in modified_tasks:
-                    recent_updates[task_dict["Task ID"]] = {
-                        "status": task_dict["Status"],
-                        "reason": task_dict.get("Reason", ""),
+        if new_status != task.status:
+            task_dict = {
+                "Task ID": task.task_id,
+                "Date": task.date,
+                "Task Description": task.description,
+                "Assigned To": task.assigned_to,
+                "Assigned By": task.assigned_by,
+                "Deadline": task.deadline,
+                "Priority": task.priority,
+                "Status": new_status,
+                "Reason": task.reason,
+                "Source": task.source,
+                "Updated By": "UI Input",
+                "Last Updated": task.last_updated
+            }
+            
+            btn_widget.configure(state="disabled")
+            
+            def update_thread():
+                try:
+                    success = self.n8n_client.submit_live_updates([task_dict])
+                    self.after(0, lambda: on_update_success(success))
+                except Exception as e:
+                    self.after(0, lambda: on_update_error(e))
+
+            def on_update_success(success):
+                if success:
+                    messagebox.showinfo("Success", f"Task {task.task_id} updated to {new_status}.")
+                    recent_updates = load_recent_updates()
+                    recent_updates[task.task_id] = {
+                        "status": new_status,
+                        "reason": task.reason,
                         "timestamp": time.time()
                     }
-                    for task in self.current_tasks:
-                        if task.task_id == task_dict["Task ID"]:
-                            task.status = task_dict["Status"]
-                            if "Reason" in task_dict:
-                                task.reason = task_dict["Reason"]
-                            break
-                save_recent_updates(recent_updates)
-                self._full_refresh()
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to update tasks:\n{e}")
-        finally:
-            self.btn_submit_updates.configure(state="normal")
+                    save_recent_updates(recent_updates)
+                    self._full_refresh()
+                try:
+                    btn_widget.configure(state="normal")
+                except:
+                    pass
+            
+            def on_update_error(e):
+                messagebox.showerror("Error", f"Failed to update task:\n{e}")
+                try:
+                    btn_widget.configure(state="normal")
+                except:
+                    pass
+
+            threading.Thread(target=update_thread, daemon=True).start()
 
 
 if __name__ == "__main__":
