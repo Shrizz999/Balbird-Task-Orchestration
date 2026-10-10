@@ -32,7 +32,7 @@ import threading
 
 from config import COLORS, FONTS, ALL_EMPLOYEES, ALL_DEPARTMENTS, DEPARTMENTS
 from services.n8n_client import N8nClient
-from services.sheets_client import SheetsClient
+from services.supabase_client import SupabaseClient
 from tkcalendar import DateEntry
 
 from .components import BG_COLOR, CARD_BG, BORDER_COLOR, TEXT_COLOR, TEXT_MUTED, ACCENT_COLOR
@@ -275,7 +275,7 @@ class MonthlyTaskUpdaterSubFrame(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
         
         self.n8n_client = N8nClient()
-        self.sheets_client = SheetsClient()
+        self.sheets_client = SupabaseClient()
         
         self.departments = list(DEPARTMENTS.keys())
         self.current_goals = []
@@ -349,7 +349,7 @@ class MonthlyTaskUpdaterSubFrame(ctk.CTkFrame):
             if g.assigned_to == dept_name:
                 # Override status if we updated it recently and it hasn't caught up
                 actual_status = self.recently_updated_status.get(g.goal_id, g.status)
-                if actual_status.lower() not in ["completed", "done"]:
+                if actual_status.lower() not in ["completed", "done", "update"]:
                     active_goals.append(g)
 
         self.current_goals = active_goals

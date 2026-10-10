@@ -4,7 +4,7 @@ import threading
 from tkinter import messagebox
 from config import COLORS, FONTS, DEPARTMENTS
 from services.n8n_client import N8nClient
-from services.sheets_client import SheetsClient
+from services.supabase_client import SupabaseClient
 from tkcalendar import DateEntry
 
 class MonthlyTasksUpdatesFrame(ctk.CTkFrame):
@@ -12,7 +12,7 @@ class MonthlyTasksUpdatesFrame(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent", **kwargs)
         
         self.n8n_client = N8nClient()
-        self.sheets_client = SheetsClient()
+        self.sheets_client = SupabaseClient()
         
         self.departments = list(DEPARTMENTS.keys())
         self.current_goals = []
@@ -98,6 +98,14 @@ class MonthlyTasksUpdatesFrame(ctk.CTkFrame):
                 var = ctk.StringVar(value=goal.status)
                 self.status_vars[goal.goal_id] = var
                 
+                # Add checklist button if checklist exists
+                has_checklist = bool(getattr(goal, 'checklist', None))
+                if has_checklist:
+                    btn_checklist = ctk.CTkButton(row, text="Checklist", width=80, height=28, 
+                                                  fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"],
+                                                  command=lambda g=goal: self.show_checklist_dialog(g))
+                    btn_checklist.grid(row=0, column=1, padx=10, pady=10)
+                
                 def on_status_change(new_val, g=goal, v=var):
                     if new_val == "Delayed":
                         self.prompt_delay_info(g, v)
@@ -107,7 +115,7 @@ class MonthlyTasksUpdatesFrame(ctk.CTkFrame):
                             del self.modified_goal_info[g.goal_id]
 
                 combo = ctk.CTkComboBox(row, values=["Pending", "Delayed", "Completed"], variable=var, width=120, command=on_status_change)
-                combo.grid(row=0, column=1, padx=10, pady=10)
+                combo.grid(row=0, column=2, padx=10, pady=10)
 
         self.combo_dept.configure(state="normal")
 
@@ -200,3 +208,68 @@ class MonthlyTasksUpdatesFrame(ctk.CTkFrame):
             messagebox.showerror("Error", f"Failed to update tasks:\n{e}")
         finally:
             self.btn_submit_updates.configure(state="normal")
+
+    def show_checklist_dialog(self, goal):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(f"Checklist for {goal.goal_id}")
+        dialog.geometry("500x500")
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+
+        dialog.update_idletasks()
+        x = self.winfo_rootx() + (self.winfo_width() // 2) - (500 // 2)
+        y = self.winfo_rooty() + (self.winfo_height() // 2) - (500 // 2)
+        dialog.geometry(f"+{x}+{y}")
+
+        scroll = ctk.CTkScrollableFrame(dialog, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        ctk.CTkLabel(scroll, text="Checklist:", font=FONTS["body_bold"], text_color=COLORS["text_main"]).pack(anchor="w", pady=(10, 0))
+        chk_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        chk_frame.pack(fill="x", pady=(5, 10))
+        
+        checkbox_vars = []
+
+        for i, item in enumerate(goal.checklist):
+            is_checked = False
+            text = str(item)
+            if isinstance(item, dict):
+                is_checked = item.get("completed", False)
+                text = str(item.get("text", "")) or str(item.get("step", ""))
+            elif isinstance(item, str):
+                if item.startswith("[x]"):
+                    is_checked = True
+                    text = item[3:].strip()
+                elif item.startswith("[ ]"):
+                    text = item[3:].strip()
+            
+            var = ctk.BooleanVar(value=is_checked)
+            checkbox_vars.append(var)
+            
+            item_card = ctk.CTkFrame(chk_frame, fg_color=COLORS["input_bg"], corner_radius=6, border_width=1, border_color=COLORS["border"])
+            item_card.pack(fill="x", pady=4, ipady=4)
+            item_card.grid_columnconfigure(1, weight=1)
+            
+            lbl = ctk.CTkLabel(item_card, text=text, font=FONTS["body"], text_color=COLORS["text_dim"] if is_checked else COLORS["text_main"], justify="left", wraplength=400)
+            
+            def on_toggle(idx=i, v=var, g=goal, l=lbl):
+                new_state = v.get()
+                l.configure(text_color=COLORS["text_dim"] if new_state else COLORS["text_main"])
+                if isinstance(g.checklist[idx], dict):
+                    g.checklist[idx]["completed"] = new_state
+                elif isinstance(g.checklist[idx], str):
+                    prefix = "[x]" if new_state else "[ ]"
+                    base_text = str(g.checklist[idx])
+                    if base_text.startswith("[x]") or base_text.startswith("[ ]"):
+                        base_text = base_text[3:].strip()
+                    g.checklist[idx] = f"{prefix} {base_text}"
+                threading.Thread(target=lambda: self.sheets_client.update_monthly_goal_checklist(g.goal_id, g.checklist), daemon=True).start()
+            
+            chk = ctk.CTkCheckBox(item_card, text="", variable=var, command=on_toggle, width=24)
+            chk.grid(row=0, column=0, padx=(10, 5), pady=8, sticky="n")
+            lbl.grid(row=0, column=1, padx=(0, 10), pady=8, sticky="w")
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=20, padx=20)
+        ctk.CTkButton(btn_frame, text="Close", command=dialog.destroy, height=38,
+                      fg_color=COLORS["accent"], hover_color=COLORS["accent_hover"]).pack(side="right", expand=True)

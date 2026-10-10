@@ -17,7 +17,7 @@ from typing import List, Dict
 
 import requests
 
-from config import SHEET_BASE_URL, SHEET_GIDS
+from config import SUPABASE_URL, SUPABASE_KEY
 
 _lock = threading.Lock()
 
@@ -26,7 +26,7 @@ _cache = {
     "data": [],
     "timestamp": 0,
 }
-_CACHE_TTL_SECONDS = 15  # Refetch at most every 15 seconds
+_CACHE_TTL_SECONDS = 5  # Refetch at most every 5 seconds
 # Local overrides to mask Google Sheets 5-minute publish delay
 import os
 import json
@@ -62,47 +62,45 @@ _local_overrides = _load_overrides()
 # ── Read from Google Sheets (published CSV) ──────────────────────────
 
 def _fetch_all_from_sheet() -> List[Dict]:
-    """Fetch all extension requests from the published Google Sheet CSV."""
-    gid = SHEET_GIDS.get("Extensions")
-    if not gid:
-        return []
-
+    """Fetch all extension requests from Supabase REST API."""
     now = time.time()
     if _cache["data"] and (now - _cache["timestamp"]) < _CACHE_TTL_SECONDS:
         return _cache["data"]
 
-    url = f"{SHEET_BASE_URL}{gid}&_={int(now)}"
+    if not SUPABASE_URL or 'your-project' in SUPABASE_URL:
+        return _cache["data"]
+        
+    url = f"{SUPABASE_URL}/rest/v1/extension_requests?select=*"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}"
+    }
     try:
-        response = requests.get(url, timeout=15)
+        response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
-        f = io.StringIO(response.text)
-        reader = csv.DictReader(f)
+        raw_data = response.json()
         rows = []
-        for row in reader:
-            if not row.get("ID"):
-                continue
-            
-            req_id = row.get("ID", "")
+        for row in raw_data:
+            req_id = str(row.get("request_id", ""))
+            if not req_id: continue
             
             row_data = {
                 "id": req_id,
-                "task_id": row.get("Task ID", ""),
-                "task_description": row.get("Task Description", ""),
-                "employee": row.get("Employee", ""),
-                "department": row.get("Department", ""),
-                "current_deadline": row.get("Current Deadline", ""),
-                "requested_deadline": row.get("Requested Deadline", ""),
-                "reason": row.get("Reason", ""),
-                "status": row.get("Status", "Pending"),
-                "manager_deadline": row.get("Manager Deadline", ""),
-                "manager_note": row.get("Manager Note", ""),
-                "submitted_at": row.get("Submitted At", ""),
-                "decided_at": row.get("Decided At", ""),
+                "task_id": row.get("task_id", ""),
+                "task_description": row.get("task_description", ""),
+                "employee": row.get("employee_name", ""),
+                "department": row.get("department", ""),
+                "current_deadline": row.get("current_deadline", ""),
+                "requested_deadline": row.get("requested_deadline", ""),
+                "reason": row.get("reason", ""),
+                "status": row.get("status", "Pending"),
+                "manager_deadline": row.get("manager_deadline", ""),
+                "manager_note": row.get("manager_note", ""),
+                "submitted_at": row.get("created_at", ""),
+                "decided_at": ""
             }
             
-            # Apply local optimistic overrides to mask 5-minute Google Sheets delay
-            # Also, if we observe a non-Pending state from the CSV, lock it into overrides
-            # to prevent Google's CDN from bouncing it back to Pending.
+            # Apply local optimistic overrides
             if row_data["status"] == "Pending" and req_id in _local_overrides:
                 override = _local_overrides[req_id]
                 row_data["status"] = override.get("status", row_data["status"])
@@ -125,7 +123,7 @@ def _fetch_all_from_sheet() -> List[Dict]:
         _cache["timestamp"] = now
         return rows
     except Exception as e:
-        print(f"Error fetching extension requests from sheet: {e}")
+        print(f"Error fetching extension requests from Supabase: {e}")
         return _cache["data"]  # Return stale cache on error
 
 

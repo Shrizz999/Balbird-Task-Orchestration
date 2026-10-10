@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import sys
 import glob
 import uuid
 import logging
@@ -11,16 +12,31 @@ import pymongo
 from typing import List, Dict, Callable, Optional
 from collections import defaultdict
 
+# Ensure the project root is on sys.path so services.local_sync resolves
+if getattr(sys, 'frozen', False):
+    _project_root = os.path.dirname(sys.executable)
+else:
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 from .models import Person, Task, Goal, Update, SalesOrder
+
+try:
+    from services.local_sync import merge_repo_task_overrides, merge_goal_overrides_into_list
+except ImportError:
+    # Fallback no-ops if the sync module isn't available
+    def merge_repo_task_overrides(tasks): return tasks
+    def merge_goal_overrides_into_list(goals): return goals
 
 logger = logging.getLogger(__name__)
 
 # Base department mapping from app.py
 TEAM_STRUCTURE = {
-    "SO department": ["Shreyash"],
-    "PO department": ["Ganesh"],
-    "Sales Department": ["Shruti"],
-    "Logistics Department": ["Vaishnavi"]
+    "SO department": ["Swapnali", "Ganesh"],
+    "PO department": [],
+    "Sales Department": [],
+    "Logistics Department": []
 }
 
 # Published Google Sheet GIDs (from n8n workflow)
@@ -54,6 +70,36 @@ def normalize_name(name: str) -> str:
             if member.lower() in nl:
                 return member
     return name
+
+def is_valid_employee(name: str) -> bool:
+    if not name:
+        return False
+    normalized = normalize_name(name)
+    for members in TEAM_STRUCTURE.values():
+        if normalized in members:
+            return True
+    return False
+
+
+from datetime import datetime
+
+def _is_date_overdue(date_str: str) -> bool:
+    if not date_str or str(date_str).strip() in ("", "-"):
+        return False
+    for fmt in ("%d/%m/%Y", "%d/%m", "%d/%m/%Y %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d", "%m/%d/%Y", "%Y/%m/%d"):
+        try:
+            dt = datetime.strptime(str(date_str).strip(), fmt)
+            return (datetime.now().date() - dt.date()).days > 0
+        except (ValueError, AttributeError):
+            continue
+    return False
+
+def apply_task_status_rules(tasks: List[Task]) -> List[Task]:
+    for t in tasks:
+        if t.status and t.status.lower() not in ("completed", "done", "update"):
+            if _is_date_overdue(t.due_date):
+                t.status = "Delayed"
+    return tasks
 
 
 class DataRepository(ABC):
@@ -108,17 +154,11 @@ class CSVRepository(DataRepository):
         self._build_people()
 
     def _build_people(self):
-        names = set()
-        for t in self.tasks:
-            names.add(t.person)
-        for g in self.goals:
-            names.add(g.person)
-        for u in self.updates:
-            names.add(u.person)
-        for name in names:
-            if name.lower() != "boss":
-                dept = get_department(name)
-                self.people.append(Person(name=name, department=dept))
+        new_people = []
+        for dept, members in TEAM_STRUCTURE.items():
+            for member in members:
+                new_people.append(Person(name=member, department=dept))
+        self.people = sorted(new_people, key=lambda p: p.name)
 
     def _load_boss_csv(self):
         pattern = os.path.join(self.data_dir, "*Boss*.csv")
@@ -197,6 +237,10 @@ class CSVRepository(DataRepository):
                         source = row.get("Source", "").strip()
                         due_date = row.get("Deadline", "").strip()
                         task_id = row.get("Task ID", "").strip() or str(uuid.uuid4())
+                        
+                        if source.lower() == "meeting transcript" and not is_valid_employee(person):
+                            continue
+                            
                         if date and task_text:
                             self.tasks.append(Task(
                                 id=task_id, date=date, person=person,
@@ -207,6 +251,7 @@ class CSVRepository(DataRepository):
                             ))
             except Exception as e:
                 logger.error(f"Error loading individual CSV {file_path}: {e}")
+        self.tasks = apply_task_status_rules(self.tasks)
 
     def get_tasks(self) -> List[Task]:
         return self.tasks
@@ -317,6 +362,10 @@ class GoogleSheetRepository(DataRepository):
                 source = row.get("Source", "").strip()
                 due_date = row.get("Deadline", "").strip()
                 task_id = row.get("Task ID", "").strip() or str(uuid.uuid4())
+                
+                if source.lower() == "meeting transcript" and not is_valid_employee(person_name):
+                    continue
+                    
                 if date and task_text:
                     new_tasks.append(Task(
                         id=task_id, date=date, person=person_name,
@@ -378,8 +427,8 @@ class GoogleSheetRepository(DataRepository):
                     logger.error(f"Error fetching Sales Orders from MongoDB: {e}")
 
             # Atomically swap
-            self.tasks = new_tasks
-            self.goals = new_goals
+            self.tasks = apply_task_status_rules(merge_repo_task_overrides(new_tasks))
+            self.goals = new_goals  # goals use different model in this repo
             self.updates = new_updates
             self.sales_orders = new_sales_orders
             self._rebuild_people()
@@ -398,23 +447,11 @@ class GoogleSheetRepository(DataRepository):
         threading.Thread(target=_run, daemon=True).start()
 
     def _rebuild_people(self):
-        real_names = []
-        for members in TEAM_STRUCTURE.values():
-            real_names.extend([m.lower() for m in members])
-            
-        names = set()
-        for t in self.tasks:
-            names.add(t.person)
-        for g in self.goals:
-            names.add(g.person)
-        for u in self.updates:
-            names.add(u.person)
-            
         new_people = []
-        for name in names:
-            if name.lower() in real_names:
-                new_people.append(Person(name=name, department=get_department(name)))
-        self.people = new_people
+        for dept, members in TEAM_STRUCTURE.items():
+            for member in members:
+                new_people.append(Person(name=member, department=dept))
+        self.people = sorted(new_people, key=lambda p: p.name)
 
     def get_tasks(self) -> List[Task]:
         return self.tasks
@@ -430,3 +467,99 @@ class GoogleSheetRepository(DataRepository):
 
     def get_sales_orders(self) -> List[SalesOrder]:
         return self.sales_orders
+
+
+class SupabaseRepository(DataRepository):
+    def __init__(self, base_url: str, api_key: str, on_refresh_done=None):
+        self.base_url = f"{base_url}/rest/v1"
+        self.headers = {
+            "apikey": api_key,
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        self.on_refresh_done = on_refresh_done
+        self.tasks = []
+        self.goals = []
+        self.updates = []
+        self.people = []
+        self.sales_orders = []
+        self._loading = False
+        self.refresh()
+
+    def _fetch_table(self, table_name: str):
+        if not self.base_url or 'your-project' in self.base_url:
+            return []
+        url = f"{self.base_url}/{table_name}?select=*"
+        try:
+            resp = requests.get(url, headers=self.headers, timeout=15)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.error(f"Error fetching {table_name} from Supabase: {e}")
+            return []
+
+    def refresh(self):
+        if self._loading: return
+        self._loading = True
+        try:
+            new_tasks = []
+            new_goals = []
+            
+            raw_tasks = self._fetch_table('tasks')
+            for row in raw_tasks:
+                person = normalize_name(row.get('assigned_to', ''))
+                source = row.get('source', '')
+                
+                if source.lower() == "meeting transcript" and not is_valid_employee(person):
+                    continue
+                    
+                db_dept = row.get('department', '').strip()
+                dept = get_department(person) if not db_dept or db_dept.lower() == 'other' else db_dept
+                new_tasks.append(Task(
+                    id=row.get('task_id', ''), date=row.get('date', ''),
+                    person=person, department=dept, task=row.get('description', ''),
+                    status=row.get('status', 'Pending'), due_date=row.get('deadline', ''),
+                    reason=row.get('reason', ''), source=row.get('source', ''),
+                    checklist=row.get('checklist', [])
+                ))
+
+            raw_goals = self._fetch_table('monthly_goals')
+            for row in raw_goals:
+                person = normalize_name(row.get('assigned_to', ''))
+                db_dept = row.get('department', '').strip()
+                dept = get_department(person) if not db_dept or db_dept.lower() == 'other' else db_dept
+                new_goals.append(Goal(
+                    id=row.get('goal_id', ''), person=person, department=dept,
+                    timeframe=row.get('time_frame', ''), period=row.get('week_month', ''),
+                    goal=row.get('goal', ''), given_by=row.get('given_by', ''),
+                    status=row.get('status', 'Pending'), reason=row.get('reason', ''),
+                    checklist=row.get('checklist', [])
+                ))
+
+            self.tasks = apply_task_status_rules(merge_repo_task_overrides(new_tasks))
+            self.goals = new_goals
+            self._rebuild_people()
+
+        except Exception as e:
+            logger.error(f"Supabase refresh error: {e}")
+        finally:
+            self._loading = False
+
+    def refresh_async(self):
+        def _run():
+            self.refresh()
+            if self.on_refresh_done: self.on_refresh_done()
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _rebuild_people(self):
+        new_people = []
+        for dept, members in TEAM_STRUCTURE.items():
+            for member in members:
+                new_people.append(Person(name=member, department=dept))
+        self.people = sorted(new_people, key=lambda p: p.name)
+
+    def get_tasks(self) -> List[Task]: return self.tasks
+    def get_goals(self) -> List[Goal]: return self.goals
+    def get_updates(self) -> List[Update]: return self.updates
+    def get_people(self) -> List[Person]: return self.people
+    def get_sales_orders(self) -> List[SalesOrder]: return self.sales_orders

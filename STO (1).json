@@ -1,0 +1,1474 @@
+{
+  "name": "STO",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Task & Goal Orchestrator",
+        "formDescription": "Analyze transcripts and assign tasks automatically.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Select Input Type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Daily Goals"
+                  },
+                  {
+                    "option": "Monthly Goals"
+                  },
+                  {
+                    "option": "Daily Transcript"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Paste The JSON",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        -4096,
+        -544
+      ],
+      "id": "68587eb8-8421-4fd1-a97f-e17518aab398",
+      "name": "On form submission",
+      "webhookId": "f66e3dea-35c6-4b6d-b416-765b99aac92c"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Daily Goals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Monthly Goals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Daily Transcript",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json['Select Input Type'] }}",
+                    "rightValue": "Live Updates",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -3792,
+        -544
+      ],
+      "id": "0eaca49d-95b3-4be0-beb9-2bb4e35097ab",
+      "name": "Input Router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nconst DEPT_MAP = {\n  \"Ganesh\": \"PO department\",\n  \"Shreyash\": \"SO department\",\n  \"Shruti\": \"Sales Department\",\n  \"Vaishnavi\": \"Logistics Department\"\n};\n\nfor (const [name, detailsList] of Object.entries(goalsData)) {\n  // Fix: Ensure we always iterate over an array of tasks\n  const items = Array.isArray(detailsList) ? detailsList : [detailsList];\n  \n  for (const details of items) {\n    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n    const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n    const dept = DEPT_MAP[name] || \"Other\";\n    \n    splitItems.push({\n      json: {\n        \"task_id\": `TSK-${dateStr}-${name.substring(0,3).toUpperCase()}-${shortHash}`,\n        \"date\": details.date || new Date().toLocaleDateString('en-GB'),\n        \"description\": details.goal || details.task || details, // Now correctly grabs the text\n        \"assigned_to\": name,\n        \"assigned_by\": \"Manager\",\n        \"department\": dept,\n        \"deadline\": details.deadline || \"\",\n        \"priority\": details.priority || \"Normal\",\n        \"status\": \"Pending\",\n        \"checklist\": details.checklist || [],\n        \"reason\": \"\",\n        \"source\": \"Daily Goals Input\",\n        \"updated_by\": \"n8n Automation\",\n        \"last_updated\": new Date().toISOString()\n      }\n    });\n  }\n}\nreturn splitItems;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3392,
+        -848
+      ],
+      "id": "b9f569bb-0fac-4a94-b019-859522c09de9",
+      "name": "Format Daily Goals"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nfor (const [dept, detailsList] of Object.entries(goalsData)) {\n  // Fix: Ensure we iterate over the array of monthly goals\n  const items = Array.isArray(detailsList) ? detailsList : [detailsList];\n  \n  for (const details of items) {\n    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n    const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n    \n    splitItems.push({\n      json: {\n        \"goal_id\": `GOAL-${dateStr}-${dept.substring(0,3).toUpperCase()}-${shortHash}`,\n        \"time_frame\": \"Monthly\",\n        \"week_month\": details.month || new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),\n        \"assigned_to\": dept,\n        \"given_by\": \"UI Input / Manager\",\n        \"goal\": details.goal || details.task || details, // Correctly grabs the string\n        \"deadline\": details.deadline || \"End of Month\",\n        \"status\": \"Pending\",\n        \"checklist\": details.checklist || [],\n        \"reason\": \"\",\n        \"updated_by\": \"n8n Automation\",\n        \"last_updated\": new Date().toISOString()\n      }\n    });\n  }\n}\nreturn splitItems;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3392,
+        -640
+      ],
+      "id": "43a8b1d1-4a1f-40cb-82dd-9f4445ac0b8c",
+      "name": "Format Monthly Goals"
+    },
+    {
+      "parameters": {
+        "tableId": "monthly_goals",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "goal_id",
+              "fieldValue": "={{ $json.goal_id }}"
+            },
+            {
+              "fieldId": "time_frame",
+              "fieldValue": "={{ $json.time_frame }}"
+            },
+            {
+              "fieldId": "week_month",
+              "fieldValue": "={{ $json.week_month }}"
+            },
+            {
+              "fieldId": "assigned_to",
+              "fieldValue": "={{ $json.assigned_to }}"
+            },
+            {
+              "fieldId": "given_by",
+              "fieldValue": "={{ $json.given_by }}"
+            },
+            {
+              "fieldId": "goal",
+              "fieldValue": "={{ $json.goal }}"
+            },
+            {
+              "fieldId": "deadline",
+              "fieldValue": "={{ $json.deadline }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "reason",
+              "fieldValue": "={{ $json.reason }}"
+            },
+            {
+              "fieldId": "updated_by",
+              "fieldValue": "={{ $json.updated_by }}"
+            },
+            {
+              "fieldId": "last_updated",
+              "fieldValue": "={{ $json.last_updated }}"
+            }
+          ]
+        },
+        "query": ""
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3088,
+        -640
+      ],
+      "id": "8b6133a3-6927-4078-b3f2-ff17449c4f52",
+      "name": "Upsert Monthly Goals",
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "monthly_goals"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -2992,
+        -336
+      ],
+      "id": "d77b81bf-a5bc-4ab7-a024-9e0d31567666",
+      "name": "Fetch Monthly Context",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawInput = $('On form submission').first().json['Paste The JSON'];\nlet finalTranscript = \"\";\nlet individualUpdates = {};\n\ntry {\n    const parsedData = JSON.parse(rawInput);\n    finalTranscript = parsedData.transcript || \"\";\n    individualUpdates = parsedData.individual_updates || {};\n} catch (e) {\n    finalTranscript = rawInput;\n}\n\nlet dailyContext = [];\nlet monthlyContext = [];\nlet sopsContext = [];\ntry {\n    const sops = $('Fetch SOPs').all() || [];\n    sopsContext = sops.map(item => item.json);\n} catch(e) {}\n\ntry {\n    const allTasks = $('Fetch All Tasks Context').all() || [];\n    dailyContext = allTasks.map(item => item.json).filter(item => Object.keys(item).length > 0 && item[\"Task ID\"]);\n} catch(e) {}\n\ntry {\n    const rawMonthly = $('Fetch Monthly Context').all() || [];\n    monthlyContext = rawMonthly.map(item => item.json).filter(item => Object.keys(item).length > 0 && item[\"Goal ID\"]);\n} catch(e) {}\n\nreturn [{ json: { transcript: finalTranscript, individual_updates: individualUpdates, daily_context: dailyContext, monthly_context: monthlyContext, sops: sopsContext } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2608,
+        -480
+      ],
+      "id": "0db9ceae-818b-4d93-90b4-d30ad3180480",
+      "name": "Prep LLM Payload"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.transcript }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=OUTPUT FORMAT:\nYou MUST output a valid JSON containing two arrays: \"Tasks\" and \"Reports\".\n\nCONTEXT:\nCompany SOPs: {{ JSON.stringify($json.sops || []) }}\nDaily Context (Existing Tasks): {{ JSON.stringify($json.daily_context) }}\nMonthly Goals: {{ JSON.stringify($json.monthly_context) }}\n\n\"Tasks\" Schema:\n{\n  \"Checklist\": [\"Step 1\", \"Step 2\", \"...\"], // AI Generated stepwise task checklist based on Company SOPs\n  \"Task_ID\": \"[If the task updates an existing task in Daily Context, put its Task ID here. If it's a completely new task, leave this blank]\",\n  \"Task_Description\": \"Single actionable task\",\n  \"Assigned_To\": \"[Name]\",\n  \"Assigned_By\": \"[Name]\",\n  \"Deadline\": \"[Extracted deadline in DD/MM/YYYY format or blank]\",\n  \"Status\": \"[Pending, Completed, Delayed]\",\n  \"Reason\": \"[Reason for delay, else blank]\",\n  \"Source\": \"Meeting Transcript\"\n}\n\n\"Reports\" Schema:\n{\n  \"Name\": \"[Name]\",\n  \"Report\": \"Honest 1-2 sentence heuristic summary of performance.\",\n  \"Rating\": \"Strict score out of 5\"\n}\n\nIMPORTANT:\n- If a deadline is mentioned or can be extracted, ALWAYS output it strictly in DD/MM/YYYY format.\n- Never use any other date format for \"Deadline\".\n- If no deadline is provided or identifiable, leave \"Deadline\" blank.\n- Ensure valid JSON."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -2480,
+        -336
+      ],
+      "id": "dad1c693-b7b6-42d1-b9a1-34033ac07347",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "openrouter/free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -2480,
+        -144
+      ],
+      "id": "ff6aac27-101d-4dd0-b8b9-565beb303044",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "f4CDg2qoRRQd4Na9",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.text || \"\";\nlet cleanText = text;\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) { cleanText = cleanText.substring(firstBrace, lastBrace + 1); }\n\nlet parsed = { Tasks: [], Reports: [] };\ntry { parsed = JSON.parse(cleanText); } catch (e) { console.log(\"LLM Parse Error:\", e); }\nconst tasks = parsed.Tasks || [];\n\nconst DEPT_MAP = { \"Ganesh\": \"PO department\", \"Shreyash\": \"SO department\", \"Shruti\": \"Sales Department\", \"Vaishnavi\": \"Logistics Department\" };\n\nreturn tasks.map(t => {\n    const safeName = (t.Assigned_To || \"UNK\").substring(0,3).toUpperCase();\n    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n    const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n    const taskId = (t.Task_ID && t.Task_ID.trim() !== \"\") ? t.Task_ID : `TSK-${dateStr}-${safeName}-${shortHash}`;\n    const dept = DEPT_MAP[t.Assigned_To] || \"Other\";\n    return { json: { \"task_id\": taskId, \"date\": new Date().toLocaleDateString('en-GB'), \"description\": t.Task_Description || \"-\", \"assigned_to\": t.Assigned_To || \"-\", \"assigned_by\": t.Assigned_By || \"-\", \"department\": dept, \"deadline\": t.Deadline || \"\", \"priority\": \"Normal\", \"status\": t.Status || \"Pending\", \"reason\": t.Reason || \"\", \"source\": t.Source || \"Meeting Transcript\", \"updated_by\": \"n8n Automation\", \"last_updated\": new Date().toISOString(), \"Checklist\": t.Checklist || [] } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2192,
+        -448
+      ],
+      "id": "2337ef67-4e97-4b3f-a50d-bc1625febb07",
+      "name": "Extract & Map Tasks"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.text || \"\";\nlet cleanText = text;\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) { cleanText = cleanText.substring(firstBrace, lastBrace + 1); }\nlet parsed = { Tasks: [], Reports: [] };\ntry { parsed = JSON.parse(cleanText); } catch (e) { console.log(\"LLM Parse Error:\", e); }\nreturn (parsed.Reports || []).map(r => { r.Date = new Date().toLocaleDateString('en-GB'); return { json: r }; });"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2192,
+        -144
+      ],
+      "id": "6e79de30-0223-4324-b21e-b3474aafd289",
+      "name": "Extract Reports"
+    },
+    {
+      "parameters": {
+        "tableId": "tasks",
+        "dataToSend": "autoMapInputData",
+        "query": ""
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3088,
+        -848
+      ],
+      "id": "64a31ca5-4787-49f3-aecd-d20940f8e6a4",
+      "name": "Upsert Tasks (Daily Goals)",
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "tasks",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "task_id",
+              "fieldValue": "={{ $json.task_id }}"
+            },
+            {
+              "fieldId": "date",
+              "fieldValue": "={{ $json.date }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json.description }}"
+            },
+            {
+              "fieldId": "assigned_to",
+              "fieldValue": "={{ $json.assigned_to }}"
+            },
+            {
+              "fieldId": "assigned_by",
+              "fieldValue": "={{ $json.assigned_by }}"
+            },
+            {
+              "fieldId": "department",
+              "fieldValue": "={{ $json.department }}"
+            },
+            {
+              "fieldId": "deadline",
+              "fieldValue": "={{ $json.deadline }}"
+            },
+            {
+              "fieldId": "priority",
+              "fieldValue": "={{ $json.priority }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "reason",
+              "fieldValue": "={{ $json.reason }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "={{ $json.source }}"
+            },
+            {
+              "fieldId": "updated_by",
+              "fieldValue": "={{ $json.updated_by }}"
+            },
+            {
+              "fieldId": "last_updated",
+              "fieldValue": "={{ $json.last_updated }}"
+            },
+            {
+              "fieldId": "checklist",
+              "fieldValue": "={{ $json.Checklist }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1952,
+        -448
+      ],
+      "id": "91c7992d-8824-4c6e-8f9d-869f08579587",
+      "name": "Upsert Tasks (Transcript)",
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "tasks"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3088,
+        -176
+      ],
+      "id": "517e11c6-3260-43eb-b00d-467041d35b35",
+      "name": "Upsert Tasks (Live Updates)",
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "boss_reviews",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "employee_name",
+              "fieldValue": "={{ $json.Name }}"
+            },
+            {
+              "fieldId": "review_date",
+              "fieldValue": "={{ $json.Date }}"
+            },
+            {
+              "fieldId": "performance_summary",
+              "fieldValue": "={{ $json.Report }}"
+            },
+            {
+              "fieldId": "rating",
+              "fieldValue": "={{ $json.Rating }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1584,
+        64
+      ],
+      "id": "37de71ac-b210-4655-ae66-49d0ff25c975",
+      "name": "Append Boss",
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst uiUpdates = payload.individual_updates || []; \nconst DEPT_MAP = { \"Ganesh\": \"PO department\", \"Shreyash\": \"SO department\", \"Shruti\": \"Sales Department\", \"Vaishnavi\": \"Logistics Department\" };\n\nconst splitItems = uiUpdates.map(task => {\n  const dept = DEPT_MAP[task[\"Assigned To\"]] || \"Other\";\n  return { json: { \"goal_id\": task[\"Task ID\"], \"task_id\": task[\"Task ID\"], \"date\": task[\"Date\"], \"description\": task[\"Task Description\"], \"goal\": task[\"Task Description\"], \"assigned_to\": task[\"Assigned To\"], \"assigned_by\": task[\"Assigned By\"], \"given_by\": task[\"Assigned By\"], \"department\": dept, \"deadline\": task[\"Deadline\"], \"priority\": task[\"Priority\"] || \"Normal\", \"status\": task[\"Status\"], \"reason\": task[\"Reason\"] || \"\", \"source\": task[\"Source\"], \"updated_by\": \"UI Input\", \"last_updated\": new Date().toISOString() } };\n});\nreturn splitItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3392,
+        -176
+      ],
+      "id": "29ca6076-9d7c-4cbf-a4ec-207bce433ada",
+      "name": "Format Live Updates"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "monthly_goals"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3088,
+        -32
+      ],
+      "id": "7d480255-55de-4401-bd7f-cfeffffcc29f",
+      "name": "Upsert Goals from Updates",
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "tasks"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -3184,
+        -336
+      ],
+      "id": "25ab5cc4-60f8-44e8-a387-f7b7967b532e",
+      "name": "Fetch All Tasks Context",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e44590a8-752f-47b7-be58-0a1bb7a3f186",
+              "leftValue": "={{ $json.Name }}",
+              "rightValue": "Balraj Waghmare",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1984,
+        -144
+      ],
+      "id": "3e74b8ef-243b-4e7c-9bf5-3c1e2df1144d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "monthly-goals-update",
+        "options": {}
+      },
+      "id": "d30852b1-8e28-41eb-8a6e-15d3923da952",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1664,
+        -272
+      ],
+      "webhookId": "22bae45d-1205-49c5-a5dc-0aa13332be5e"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json.body || $input.first().json;\nconst uiUpdates = payload.individual_updates || [];\nconst splitItems = [];\nfor (const task of uiUpdates) {\n  splitItems.push({ json: { \"goal_id\": task[\"Task ID\"], \"assigned_to\": task[\"Assigned To\"], \"description\": task[\"Task Description\"], \"deadline\": task[\"Deadline\"], \"status\": task[\"Status\"], \"reason\": task[\"Reason\"] || \"\", \"updated_by\": \"UI Input\", \"last_updated\": new Date().toISOString() } });\n}\nreturn splitItems;"
+      },
+      "id": "d7ab7517-f574-40ae-ba8c-400d0b8e2f9f",
+      "name": "Format Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1440,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "monthly_goals",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "goal_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.goal_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "goal_id",
+              "fieldValue": "={{ $json.goal_id }}"
+            },
+            {
+              "fieldId": "assigned_to",
+              "fieldValue": "={{ $json.assigned_to }}"
+            },
+            {
+              "fieldId": "goal",
+              "fieldValue": "={{ $json.description }}"
+            },
+            {
+              "fieldId": "deadline",
+              "fieldValue": "={{ $json.deadline }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "reason",
+              "fieldValue": "={{ $json.reason }}"
+            },
+            {
+              "fieldId": "updated_by",
+              "fieldValue": "={{ $json.updated_by }}"
+            },
+            {
+              "fieldId": "last_updated",
+              "fieldValue": "={{ $json.last_updated }}"
+            }
+          ]
+        }
+      },
+      "id": "f9ed4686-aec9-4bb7-8613-1ab03c7f2bd7",
+      "name": "Update Goals Sheet",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        -272
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "extension-requests",
+        "options": {}
+      },
+      "id": "cc6150b3-e4b8-4c6b-87c4-b8feb4cae082",
+      "name": "Extension Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -2304,
+        -752
+      ],
+      "webhookId": "extension-requests-webhook"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action || ($json.body && $json.body.action) || '' }}",
+                    "rightValue": "submit",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action || ($json.body && $json.body.action) || '' }}",
+                    "rightValue": "decide",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -2064,
+        -752
+      ],
+      "id": "ba6e21be-3ff9-4acf-ae94-f6d14ad29069",
+      "name": "Action Router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    \"request_id\": body.id,\n    \"task_id\": body.task_id,\n    \"description\": body.task_description,\n    \"employee_name\": body.employee,\n    \"department\": body.department || \"\",\n    \"current_deadline\": body.current_deadline,\n    \"requested_deadline\": body.requested_deadline,\n    \"reason\": body.reason,\n    \"status\": \"Pending\",\n    \"manager_deadline\": \"\",\n    \"manager_note\": \"\",\n    \"created_at\": body.submitted_at,\n    \"decided_at\": \"\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1824,
+        -864
+      ],
+      "id": "98dbc465-0090-477a-9b2b-191e222e2cf8",
+      "name": "Format New Request"
+    },
+    {
+      "parameters": {
+        "tableId": "extension_requests",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "task_id",
+              "fieldValue": "={{ $json.task_id }}"
+            },
+            {
+              "fieldId": "task_description",
+              "fieldValue": "={{ $json.description }}"
+            },
+            {
+              "fieldId": "employee_name",
+              "fieldValue": "={{ $json.employee_name }}"
+            },
+            {
+              "fieldId": "department",
+              "fieldValue": "={{ $json.department }}"
+            },
+            {
+              "fieldId": "current_deadline",
+              "fieldValue": "={{ $json.current_deadline }}"
+            },
+            {
+              "fieldId": "requested_deadline",
+              "fieldValue": "={{ $json.requested_deadline }}"
+            },
+            {
+              "fieldId": "reason",
+              "fieldValue": "={{ $json.reason }}"
+            },
+            {
+              "fieldId": "manager_deadline",
+              "fieldValue": "={{ $json.manager_deadline }}"
+            },
+            {
+              "fieldId": "manager_note",
+              "fieldValue": "={{ $json.manager_note }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $json.created_at }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1584,
+        -864
+      ],
+      "id": "562fa31c-332e-479a-a532-901fe3583c6d",
+      "name": "Append Extension Request",
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    \"request_id\": body.id,\n    \"status\": body.status,\n    \"manager_deadline\": body.manager_deadline || \"\",\n    \"manager_note\": body.manager_note || \"\",\n    \"decided_at\": body.decided_at\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1824,
+        -656
+      ],
+      "id": "11ebb1d6-654a-4efd-ac87-a0ecd76ab35e",
+      "name": "Format Decision"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "extension_requests",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "request_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.request_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "manager_deadline",
+              "fieldValue": "={{ $json.manager_deadline }}"
+            },
+            {
+              "fieldId": "manager_note",
+              "fieldValue": "={{ $json.manager_note }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $json.decided_at }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1584,
+        -656
+      ],
+      "id": "4a0e06f5-2cc7-426c-872c-4d1b12571d17",
+      "name": "Update Extension Decision",
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "company_sops"
+      },
+      "id": "aebce77b-f7f5-4921-acff-40f4121f85ed",
+      "name": "Fetch SOPs",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -2832,
+        -576
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst rawInput = $input.first().json['Paste The JSON'];\nconst inputType = $('On form submission').first().json['Select Input Type'];\nlet sopsContext = [];\ntry {\n    const sops = $('Fetch SOPs').all() || [];\n    sopsContext = sops.map(item => item.json);\n} catch(e) {}\n\nreturn [{ json: { raw_json: rawInput, sops: sopsContext, input_type: inputType } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3500,
+        -800
+      ],
+      "id": "e70df3b3-7ac7-4537-956c-377e360acf3a",
+      "name": "Prep Goals For LLM"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.raw_json }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=OUTPUT FORMAT:\nYou MUST output a valid JSON. \nYou will be given a JSON with goals, e.g. {\"goals\": {\"Shreyash\": [{\"goal\": \"...\", \"deadline\": \"...\"}]}}.\nReturn the EXACT same JSON structure, but for every goal object, add a \"checklist\" property which is an array of strings representing stepwise tasks generated based on Company SOPs.\n\nCONTEXT:\nCompany SOPs: {{ JSON.stringify($json.sops || []) }}\n\nIMPORTANT:\n- ONLY output the JSON. Do not output anything else.\n"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -3200,
+        -800
+      ],
+      "id": "5b6a951c-1124-432a-88bc-72ca2f4f9ee0",
+      "name": "Goals LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "openrouter/free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -3200,
+        -600
+      ],
+      "id": "55457d12-5524-4a63-b49a-a54977fb90d6",
+      "name": "OpenRouter For Goals",
+      "credentials": {
+        "openRouterApi": {
+          "id": "f4CDg2qoRRQd4Na9",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst text = $input.first().json.text || \"\";\nlet cleanText = text;\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) { cleanText = cleanText.substring(firstBrace, lastBrace + 1); }\n\nreturn [{ json: { \"Paste The JSON\": cleanText } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2900,
+        -800
+      ],
+      "id": "7567db67-3f86-4ce7-aef8-51dd5a28ecb1",
+      "name": "Extract LLM Goals JSON"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Prep Goals For LLM').first().json.input_type }}",
+                    "rightValue": "Daily Goals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Prep Goals For LLM').first().json.input_type }}",
+                    "rightValue": "Monthly Goals",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -2600,
+        -800
+      ],
+      "id": "7fc9f322-626a-4433-828c-a5a8d9870e94",
+      "name": "Goals Type Router"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.srv1463077.hstgr.cloud",
+            "user-agent": "python-requests/2.32.3",
+            "content-length": "355",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate",
+            "content-type": "application/json",
+            "x-forwarded-for": "172.18.0.1",
+            "x-forwarded-host": "n8n.srv1463077.hstgr.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "723ba21ea2ea",
+            "x-real-ip": "172.18.0.1"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "individual_updates": [
+              {
+                "Task ID": "GOAL-261006-SO -38EW",
+                "Date": "October 2026",
+                "Task Description": "BJK",
+                "Assigned To": "SO department",
+                "Assigned By": "UI Input / Manager",
+                "Deadline": "06/10/2026",
+                "Priority": "Normal",
+                "Status": "Completed",
+                "Reason": "",
+                "Source": "",
+                "Updated By": "UI Input",
+                "Last Updated": "2026-10-06T16:14:57.898+00:00"
+              }
+            ]
+          },
+          "webhookUrl": "https://n8n.srv1463077.hstgr.cloud/webhook/monthly-goals-update",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Extension Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.srv1463077.hstgr.cloud",
+            "user-agent": "python-requests/2.32.3",
+            "content-length": "176",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate",
+            "content-type": "application/json",
+            "x-forwarded-for": "172.18.0.1",
+            "x-forwarded-host": "n8n.srv1463077.hstgr.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "723ba21ea2ea",
+            "x-real-ip": "172.18.0.1"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "action": "decide",
+            "id": "96ba7a48-e47f-4637-81f8-77110fed8f10",
+            "status": "Approved",
+            "manager_deadline": "14/10/2026",
+            "manager_note": "",
+            "decided_at": "2026-10-06 22:37"
+          },
+          "webhookUrl": "https://n8n.srv1463077.hstgr.cloud/webhook/extension-requests",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "On form submission": [
+      {
+        "json": {
+          "Select Input Type": "Daily Goals",
+          "Paste The JSON": "{\"goals\": {\"Shreyash\": [{\"goal\": \"swewswq\", \"date\": \"09/10/2026\", \"deadline\": \"14/10/2026\", \"priority\": \"Urgent\"}]}}",
+          "submittedAt": "2026-10-09T11:05:56.185+02:00",
+          "formMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Input Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Router": {
+      "main": [
+        [
+          {
+            "node": "Prep Goals For LLM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep Goals For LLM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch All Tasks Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Live Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Daily Goals": {
+      "main": [
+        [
+          {
+            "node": "Upsert Tasks (Daily Goals)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Monthly Goals": {
+      "main": [
+        [
+          {
+            "node": "Upsert Monthly Goals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Tasks Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch Monthly Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Monthly Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch SOPs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep LLM Payload": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Extract & Map Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Map Tasks": {
+      "main": [
+        [
+          {
+            "node": "Upsert Tasks (Transcript)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Reports": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Live Updates": {
+      "main": [
+        [
+          {
+            "node": "Upsert Tasks (Live Updates)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upsert Goals from Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Append Boss",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Updates": {
+      "main": [
+        [
+          {
+            "node": "Update Goals Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extension Webhook": {
+      "main": [
+        [
+          {
+            "node": "Action Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action Router": {
+      "main": [
+        [
+          {
+            "node": "Format New Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format New Request": {
+      "main": [
+        [
+          {
+            "node": "Append Extension Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Decision": {
+      "main": [
+        [
+          {
+            "node": "Update Extension Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch SOPs": {
+      "main": [
+        [
+          {
+            "node": "Prep LLM Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Goals For LLM": {
+      "main": [
+        [
+          {
+            "node": "Goals LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter For Goals": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Goals LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Goals LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Extract LLM Goals JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract LLM Goals JSON": {
+      "main": [
+        [
+          {
+            "node": "Goals Type Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Goals Type Router": {
+      "main": [
+        [
+          {
+            "node": "Format Daily Goals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Monthly Goals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9ac9aa12-47d1-4734-b273-d7f5ee51137c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5ef644fd2c07e9b5102bcb60029a5fd4b92657c261e4bae43282daec5b976f0c"
+  },
+  "id": "i4B7xx5xVuCXMLG1",
+  "tags": []
+}

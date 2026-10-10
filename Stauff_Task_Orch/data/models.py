@@ -22,6 +22,7 @@ class Task:
     due_date: str = ""
     reason: str = ""
     source: str = ""
+    checklist: list = None
 
 @dataclass
 class Goal:
@@ -34,6 +35,7 @@ class Goal:
     given_by: str = ""
     status: str = "Pending"
     reason: str = ""
+    checklist: list = None
 
 @dataclass
 class Update:

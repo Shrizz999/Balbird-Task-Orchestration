@@ -5,7 +5,10 @@ from pathlib import Path
 # ==============================================================================
 # CONFIGURATION
 # ==============================================================================
-N8N_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/form/a06c7116-ac17-432f-9d20-666c183f8f8a"
+SUPABASE_URL = "https://bzvyqzivhnlqdzjkujyi.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6dnlxeml2aG5scWR6amt1anlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5Njg1OTksImV4cCI6MjEwNDU0NDU5OX0.Z-C3il7l2Oa6aD-axbnD2wDIwGLMJKhcmwcopU5ZK6Q"
+
+N8N_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/form/bbdf4375-d5e3-47b0-aef9-90a2e2050f22"
 N8N_MONTHLY_UPDATES_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/monthly-goals-update"
 N8N_EXTENSION_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/extension-requests"
 
@@ -36,10 +39,10 @@ CSV_FILES = {
 
 # ── Business Logic ──
 DEPARTMENTS = {
-    "SO department": ["Shreyash"],
-    "PO department": ["Ganesh"],
-    "Sales Department": ["Shruti"],
-    "Logistics Department": ["Vaishnavi"]
+    "SO department": ["Swapnali", "Ganesh"],
+    "PO department": [],
+    "Sales Department": [],
+    "Logistics Department": []
 }
 ALL_EMPLOYEES = [emp for emps in DEPARTMENTS.values() for emp in emps]
 ALL_DEPARTMENTS = list(DEPARTMENTS.keys())

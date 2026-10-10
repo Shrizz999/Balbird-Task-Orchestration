@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from data.repository import DataRepository, GoogleSheetRepository, TEAM_STRUCTURE
+from data.repository import DataRepository, GoogleSheetRepository, SupabaseRepository, TEAM_STRUCTURE
 from .dashboard import DashboardView
 from .tasks import TasksView
 from .goals import GoalsView
@@ -10,7 +10,7 @@ from .task_assignment import TaskAssignmentView
 from .extension_requests import ExtensionRequestsView
 from .components import BG_COLOR, CARD_BG, BORDER_COLOR, TEXT_COLOR, TEXT_MUTED, ACCENT_COLOR
 
-REFRESH_INTERVAL_MS = 120_000  # Auto-refresh every 2 minutes
+REFRESH_INTERVAL_MS = 30_000  # Auto-refresh every 30 seconds
 
 
 class MainWindow(ctk.CTk):
@@ -22,6 +22,7 @@ class MainWindow(ctk.CTk):
         self.title("Task Orchestration Dashboard")
         self.geometry("1280x850")
         self.configure(fg_color=BG_COLOR)
+        self.after(0, lambda: self.state("zoomed"))
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
@@ -32,7 +33,7 @@ class MainWindow(ctk.CTk):
         self.show_view("Dashboard")
 
         # Start auto-refresh if live
-        if isinstance(self.repository, GoogleSheetRepository):
+        if isinstance(self.repository, (GoogleSheetRepository, SupabaseRepository)):
             self._schedule_auto_refresh()
 
     def _build_sidebar(self):
@@ -50,6 +51,8 @@ class MainWindow(ctk.CTk):
 
         if isinstance(self.repository, GoogleSheetRepository):
             self.lbl_live.configure(text="● LIVE — Google Sheets")
+        elif isinstance(self.repository, SupabaseRepository):
+            self.lbl_live.configure(text="● LIVE — Supabase")
 
         self.current_dept = ctk.StringVar(value="All Departments")
         dept_options = ["All Departments"] + list(TEAM_STRUCTURE.keys())
@@ -78,7 +81,7 @@ class MainWindow(ctk.CTk):
                 ("Team Profiles", PeopleView),
                 ("Analytics", AnalyticsView)
             ]),
-            ("Task Assignment", [
+            ("Delegation", [
                 ("Task Assignment", TaskAssignmentView)
             ]),
             ("Approvals", [
@@ -99,9 +102,9 @@ class MainWindow(ctk.CTk):
             for item_name, view_class in items:
                 btn = ctk.CTkButton(self.sidebar, text=item_name, fg_color="transparent",
                                     text_color=TEXT_COLOR, hover_color=BG_COLOR,
-                                    anchor="w", font=("Inter", 13),
+                                    anchor="w", font=("Inter", 13), height=32,
                                     command=lambda name=item_name: self.show_view(name))
-                btn.grid(row=row_idx, column=0, padx=10, pady=2, sticky="ew")
+                btn.grid(row=row_idx, column=0, padx=10, pady=4, sticky="ew")
                 self.nav_buttons[item_name] = btn
 
                 view_instance = view_class(self, self.repository)
@@ -128,10 +131,16 @@ class MainWindow(ctk.CTk):
 
         view = self.views[name]
         view.grid(row=0, column=1, sticky="nsew")
+        self.current_view_name = name
+        
+        if getattr(view, '_needs_refresh', False):
+            if hasattr(view, 'refresh_data'):
+                view.refresh_data()
+            view._needs_refresh = False
 
     def _manual_refresh(self):
         self.btn_refresh.configure(text="Refreshing...", state="disabled")
-        if isinstance(self.repository, GoogleSheetRepository):
+        if isinstance(self.repository, (GoogleSheetRepository, SupabaseRepository)):
             self.repository.on_refresh_done = self._on_refresh_complete
             self.repository.refresh_async()
         else:
@@ -143,14 +152,22 @@ class MainWindow(ctk.CTk):
         self.after(0, self._apply_refresh)
 
     def _apply_refresh(self):
-        for view in self.views.values():
-            if hasattr(view, 'refresh_data'):
-                view.refresh_data()
+        # Only refresh the visible view immediately to prevent UI freeze/stutter
+        if hasattr(self, 'current_view_name') and self.current_view_name in self.views:
+            active_view = self.views[self.current_view_name]
+            if hasattr(active_view, 'refresh_data'):
+                active_view.refresh_data()
+        
+        # Mark the other views as stale so they refresh lazily when shown
+        for name, view in self.views.items():
+            if name != getattr(self, 'current_view_name', None):
+                view._needs_refresh = True
+
         self.btn_refresh.configure(text="↻ Refresh Data", state="normal")
 
     def _schedule_auto_refresh(self):
         def _tick():
-            if isinstance(self.repository, GoogleSheetRepository):
+            if isinstance(self.repository, (GoogleSheetRepository, SupabaseRepository)):
                 self.repository.on_refresh_done = self._on_refresh_complete
                 self.repository.refresh_async()
             self.after(REFRESH_INTERVAL_MS, _tick)

@@ -1,5 +1,5 @@
 {
-  "name": "Stauff - Extension Requests",
+  "name": "STO",
   "nodes": [
     {
       "parameters": {
@@ -30,15 +30,17 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "responseMode": "onReceived"
+        }
       },
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.5,
       "position": [
-        272,
-        304
+        1760,
+        1472
       ],
-      "id": "c3c5711f-e514-419a-ad40-44b9f70a45d0",
+      "id": "7ad96a43-f526-4eec-923d-aceb7644132b",
       "name": "On form submission",
       "webhookId": "a06c7116-ac17-432f-9d20-666c183f8f8a"
     },
@@ -137,248 +139,94 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        576,
-        304
+        2064,
+        1472
       ],
-      "id": "2f7400b1-86b7-479f-906e-4e445c910217",
+      "id": "bdeeae67-defb-4ad7-a529-1bdb8a9bbb52",
       "name": "Input Router"
     },
     {
       "parameters": {
-        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nconst DEPT_MAP = {\n  \"Ganesh\": \"PO department\",\n  \"Shreyash\": \"SO department\",\n  \"Shruti\": \"Sales Department\",\n  \"Vaishnavi\": \"Logistics Department\"\n};\n\nfor (const [name, details] of Object.entries(goalsData)) {\n  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n  const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n  const dept = DEPT_MAP[name] || \"Other\";\n  splitItems.push({\n    json: {\n      \"Task ID\": `TSK-${dateStr}-${name.substring(0,3).toUpperCase()}-${shortHash}`,\n      \"Date\": new Date().toLocaleDateString('en-GB'),\n      \"Task Description\": details.goal || details,\n      \"Assigned To\": name,\n      \"Assigned By\": \"Manager\",\n      \"Department\": dept,\n      \"Deadline\": details.deadline || \"\",\n      \"Priority\": details.priority || \"Normal\",\n      \"Status\": \"Pending\",\n      \"Reason\": \"\",\n      \"Source\": \"Daily Goals Input\",\n      \"Updated By\": \"n8n Automation\",\n      \"Last Updated\": new Date().toISOString()\n    }\n  });\n}\nreturn splitItems;"
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nconst DEPT_MAP = {\n  \"Ganesh\": \"PO department\",\n  \"Shreyash\": \"SO department\",\n  \"Shruti\": \"Sales Department\",\n  \"Vaishnavi\": \"Logistics Department\"\n};\n\nfor (const [name, details] of Object.entries(goalsData)) {\n  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n  const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n  const dept = DEPT_MAP[name] || \"Other\";\n  splitItems.push({\n    json: {\n      \"task_id\": `TSK-${dateStr}-${name.substring(0,3).toUpperCase()}-${shortHash}`,\n      \"date\": new Date().toLocaleDateString('en-GB'),\n      \"description\": details.goal || details,\n      \"assigned_to\": name,\n      \"assigned_by\": \"Manager\",\n      \"department\": dept,\n      \"deadline\": details.deadline || \"\",\n      \"priority\": details.priority || \"Normal\",\n      \"status\": \"Pending\",\n      \"reason\": \"\",\n      \"source\": \"Daily Goals Input\",\n      \"updated_by\": \"n8n Automation\",\n      \"last_updated\": new Date().toISOString()\n    }\n  });\n}\nreturn splitItems;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        976,
-        0
+        2464,
+        1168
       ],
-      "id": "12be753c-c63f-4655-9fd9-55b812e8ed54",
+      "id": "5f2a689b-e2d8-4c80-ae19-2b1c1fe1182b",
       "name": "Format Daily Goals"
     },
     {
       "parameters": {
-        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nfor (const [dept, goal] of Object.entries(goalsData)) {\n  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n  const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n  splitItems.push({\n    json: {\n      \"Goal ID\": `GOAL-${dateStr}-${dept.substring(0,3).toUpperCase()}-${shortHash}`,\n      \"Time Frame\": \"Monthly\",\n      \"Week/Month\": new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),\n      \"Assigned To\": dept,\n      \"Given By\": \"UI Input / Manager\",\n      \"Goal\": goal,\n      \"Deadline\": \"End of Month\",\n      \"Status\": \"Pending\",\n      \"Reason\": \"\",\n      \"Updated By\": \"n8n Automation\",\n      \"Last Updated\": new Date().toISOString()\n    }\n  });\n}\nreturn splitItems;"
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst goalsData = payload.goals || {};\nconst splitItems = [];\n\nfor (const [dept, goal] of Object.entries(goalsData)) {\n  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n  const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n  splitItems.push({\n    json: {\n      \"goal_id\": `GOAL-${dateStr}-${dept.substring(0,3).toUpperCase()}-${shortHash}`,\n      \"time_frame\": \"Monthly\",\n      \"week_month\": new Date().toLocaleString('default', { month: 'long', year: 'numeric' }),\n      \"assigned_to\": dept,\n      \"given_by\": \"UI Input / Manager\",\n      \"goal\": goal,\n      \"deadline\": \"End of Month\",\n      \"status\": \"Pending\",\n      \"reason\": \"\",\n      \"updated_by\": \"n8n Automation\",\n      \"last_updated\": new Date().toISOString()\n    }\n  });\n}\nreturn splitItems;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        976,
-        208
+        2464,
+        1376
       ],
-      "id": "68055fe1-5fbf-4eec-9f7d-b89e7f771470",
+      "id": "b3b55762-d429-4a53-81dc-38b0d37f2725",
       "name": "Format Monthly Goals"
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Copy of BalPigeon",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1837353468,
-          "mode": "list",
-          "cachedResultName": "Goals",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Goal ID": "={{ $json['Goal ID'] }}",
-            "Time Frame": "={{ $json['Time Frame'] }}",
-            "Week/Month": "={{ $json['Week/Month'] }}",
-            "Assigned To": "={{ $json['Assigned To'] }}",
-            "Given By": "={{ $json['Given By'] }}",
-            "Goal": "={{ $json.Goal.goal }}",
-            "Deadline": "={{ $json.Goal.deadline }}",
-            "Status": "={{ $json.Status }}",
-            "Reason": "={{ $json.Reason }}",
-            "Updated By": "={{ $json['Updated By'] }}",
-            "Last Updated": "={{ $json['Last Updated'] }}"
-          },
-          "matchingColumns": [
-            "Goal ID"
-          ],
-          "schema": [
-            {
-              "id": "Goal ID",
-              "displayName": "Goal ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Time Frame",
-              "displayName": "Time Frame",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Week/Month",
-              "displayName": "Week/Month",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Assigned To",
-              "displayName": "Assigned To",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Given By",
-              "displayName": "Given By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Goal",
-              "displayName": "Goal",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Deadline",
-              "displayName": "Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Reason",
-              "displayName": "Reason",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Updated By",
-              "displayName": "Updated By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Last Updated",
-              "displayName": "Last Updated",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "create",
+        "tableId": "monthly_goals",
+        "options": {},
+        "dataMode": "autoMapInputData"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        1280,
-        208
+        2768,
+        1376
       ],
-      "id": "6032148d-9da2-460c-83aa-5953ed9e9da4",
+      "id": "ffc4bc89-41ba-470e-8519-f3c4c3036ecb",
       "name": "Upsert Monthly Goals",
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Copy of BalPigeon",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1837353468,
-          "mode": "list",
-          "cachedResultName": "Goals",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
-        },
-        "filtersUI": {
-          "values": [
-            {
-              "lookupColumn": "Week/Month",
-              "lookupValue": "={{ $now.setZone('Asia/Kolkata').toFormat('MMMM, yyyy') }}"
-            }
-          ]
-        },
-        "options": {}
+        "operation": "getAll",
+        "tableId": "monthly_goals",
+        "options": {},
+        "dataMode": "autoMapInputData"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        1376,
-        512
+        2864,
+        1680
       ],
-      "id": "f5605063-a59a-4b66-b976-066fe77ba63a",
+      "id": "625fc113-b897-44de-a7f7-b7c5c428d846",
       "name": "Fetch Monthly Context",
       "alwaysOutputData": true,
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const rawInput = $('On form submission').first().json['Paste The JSON'];\nlet finalTranscript = \"\";\nlet individualUpdates = {};\n\ntry {\n    const parsedData = JSON.parse(rawInput);\n    finalTranscript = parsedData.transcript || \"\";\n    individualUpdates = parsedData.individual_updates || {};\n} catch (e) {\n    finalTranscript = rawInput;\n}\n\nlet dailyContext = [];\nlet monthlyContext = [];\n\ntry {\n    const allTasks = $('Fetch All Tasks Context').all() || [];\n    dailyContext = allTasks.map(item => item.json).filter(item => Object.keys(item).length > 0 && item[\"Task ID\"]);\n} catch(e) {}\n\ntry {\n    const rawMonthly = $('Fetch Monthly Context').all() || [];\n    monthlyContext = rawMonthly.map(item => item.json).filter(item => Object.keys(item).length > 0 && item[\"Goal ID\"]);\n} catch(e) {}\n\nreturn [{ json: { transcript: finalTranscript, individual_updates: individualUpdates, daily_context: dailyContext, monthly_context: monthlyContext } }];"
+        "jsCode": "const rawInput = $('On form submission').first().json['Paste The JSON'];\nlet finalTranscript = \"\";\nlet individualUpdates = {};\n\ntry {\n    const parsedData = JSON.parse(rawInput);\n    finalTranscript = parsedData.transcript || \"\";\n    individualUpdates = parsedData.individual_updates || {};\n} catch (e) {\n    finalTranscript = rawInput;\n}\n\nlet dailyContext = [];\nlet monthlyContext = [];\nlet sopsContext = [];\ntry {\n    const sops = $('Fetch SOPs').all() || [];\n    sopsContext = sops.map(item => item.json);\n} catch(e) {}\n\ntry {\n    const allTasks = $('Fetch All Tasks Context').all() || [];\n    dailyContext = allTasks.map(item => item.json).filter(item => Object.keys(item).length > 0 && item[\"Task ID\"]);\n} catch(e) {}\n\ntry {\n    const rawMonthly = $('Fetch Monthly Context').all() || [];\n    monthlyContext = rawMonthly.map(item => item.json).filter(item => Object.keys(item).length > 0 && item[\"Goal ID\"]);\n} catch(e) {}\n\nreturn [{ json: { transcript: finalTranscript, individual_updates: individualUpdates, daily_context: dailyContext, monthly_context: monthlyContext, sops: sopsContext } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1584,
-        512
+        3072,
+        1680
       ],
-      "id": "917dfb6b-4f3d-4c2a-8d71-ddafee1636ae",
+      "id": "d53710fb-d11a-4729-a0e6-671af0804792",
       "name": "Prep LLM Payload"
     },
     {
@@ -389,7 +237,7 @@
           "messageValues": [
             {
               "type": "HumanMessagePromptTemplate",
-              "message": "=OUTPUT FORMAT:\nYou MUST output a valid JSON containing two arrays: \"Tasks\" and \"Reports\".\n\nCONTEXT:\nDaily Context (Existing Tasks): {{ JSON.stringify($json.daily_context) }}\nMonthly Goals: {{ JSON.stringify($json.monthly_context) }}\n\n\"Tasks\" Schema:\n{\n  \"Task_ID\": \"[If the task updates an existing task in Daily Context, put its Task ID here. If it's a completely new task, leave this blank]\",\n  \"Task_Description\": \"Single actionable task\",\n  \"Assigned_To\": \"[Name]\",\n  \"Assigned_By\": \"[Name]\",\n  \"Deadline\": \"[Extracted deadline in DD/MM/YYYY format or blank]\",\n  \"Status\": \"[Pending, Completed, Delayed]\",\n  \"Reason\": \"[Reason for delay, else blank]\",\n  \"Source\": \"Meeting Transcript\"\n}\n\n\"Reports\" Schema:\n{\n  \"Name\": \"[Name]\",\n  \"Report\": \"Honest 1-2 sentence heuristic summary of performance.\",\n  \"Rating\": \"Strict score out of 5\"\n}\n\nIMPORTANT:\n- If a deadline is mentioned or can be extracted, ALWAYS output it strictly in DD/MM/YYYY format.\n- Never use any other date format for \"Deadline\".\n- If no deadline is provided or identifiable, leave \"Deadline\" blank.\n- Ensure valid JSON."
+              "message": "=OUTPUT FORMAT:\nYou MUST output a valid JSON containing two arrays: \"Tasks\" and \"Reports\".\n\nCONTEXT:\nCompany SOPs: {{ JSON.stringify($json.sops || []) }}\nDaily Context (Existing Tasks): {{ JSON.stringify($json.daily_context) }}\nMonthly Goals: {{ JSON.stringify($json.monthly_context) }}\n\n\"Tasks\" Schema:\n{\n  \"Checklist\": [\"Step 1\", \"Step 2\", \"...\"], // AI Generated stepwise task checklist based on Company SOPs\n  \"Task_ID\": \"[If the task updates an existing task in Daily Context, put its Task ID here. If it's a completely new task, leave this blank]\",\n  \"Task_Description\": \"Single actionable task\",\n  \"Assigned_To\": \"[Name]\",\n  \"Assigned_By\": \"[Name]\",\n  \"Deadline\": \"[Extracted deadline in DD/MM/YYYY format or blank]\",\n  \"Status\": \"[Pending, Completed, Delayed]\",\n  \"Reason\": \"[Reason for delay, else blank]\",\n  \"Source\": \"Meeting Transcript\"\n}\n\n\"Reports\" Schema:\n{\n  \"Name\": \"[Name]\",\n  \"Report\": \"Honest 1-2 sentence heuristic summary of performance.\",\n  \"Rating\": \"Strict score out of 5\"\n}\n\nIMPORTANT:\n- If a deadline is mentioned or can be extracted, ALWAYS output it strictly in DD/MM/YYYY format.\n- Never use any other date format for \"Deadline\".\n- If no deadline is provided or identifiable, leave \"Deadline\" blank.\n- Ensure valid JSON."
             }
           ]
         },
@@ -398,10 +246,10 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        1888,
-        512
+        3376,
+        1680
       ],
-      "id": "0bf9169e-cc8c-4c38-b272-48208ab1d34b",
+      "id": "2b3141ae-a71e-4e7d-b27c-09d07d5a2670",
       "name": "Basic LLM Chain"
     },
     {
@@ -412,10 +260,10 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "typeVersion": 1,
       "position": [
-        1888,
-        704
+        3376,
+        1872
       ],
-      "id": "b9b9810a-273a-4316-bc7a-0b277fa76fb9",
+      "id": "bfb53c24-0a27-4c76-8c95-8184762307b8",
       "name": "OpenRouter Chat Model",
       "credentials": {
         "openRouterApi": {
@@ -426,15 +274,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const text = $input.first().json.text || \"\";\nlet cleanText = text;\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) { cleanText = cleanText.substring(firstBrace, lastBrace + 1); }\n\nlet parsed = { Tasks: [], Reports: [] };\ntry { parsed = JSON.parse(cleanText); } catch (e) { console.log(\"LLM Parse Error:\", e); }\nconst tasks = parsed.Tasks || [];\n\nconst DEPT_MAP = { \"Ganesh\": \"PO department\", \"Shreyash\": \"SO department\", \"Shruti\": \"Sales Department\", \"Vaishnavi\": \"Logistics Department\" };\n\nreturn tasks.map(t => {\n    const safeName = (t.Assigned_To || \"UNK\").substring(0,3).toUpperCase();\n    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n    const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n    const taskId = (t.Task_ID && t.Task_ID.trim() !== \"\") ? t.Task_ID : `TSK-${dateStr}-${safeName}-${shortHash}`;\n    const dept = DEPT_MAP[t.Assigned_To] || \"Other\";\n    return { json: { \"Task ID\": taskId, \"Date\": new Date().toLocaleDateString('en-GB'), \"Task Description\": t.Task_Description || \"-\", \"Assigned To\": t.Assigned_To || \"-\", \"Assigned By\": t.Assigned_By || \"-\", \"Department\": dept, \"Deadline\": t.Deadline || \"\", \"Priority\": \"Normal\", \"Status\": t.Status || \"Pending\", \"Reason\": t.Reason || \"\", \"Source\": t.Source || \"Meeting Transcript\", \"Updated By\": \"n8n Automation\", \"Last Updated\": new Date().toISOString() } };\n});"
+        "jsCode": "const text = $input.first().json.text || \"\";\nlet cleanText = text;\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) { cleanText = cleanText.substring(firstBrace, lastBrace + 1); }\n\nlet parsed = { Tasks: [], Reports: [] };\ntry { parsed = JSON.parse(cleanText); } catch (e) { console.log(\"LLM Parse Error:\", e); }\nconst tasks = parsed.Tasks || [];\n\nconst DEPT_MAP = { \"Ganesh\": \"PO department\", \"Shreyash\": \"SO department\", \"Shruti\": \"Sales Department\", \"Vaishnavi\": \"Logistics Department\" };\n\nreturn tasks.map(t => {\n    const safeName = (t.Assigned_To || \"UNK\").substring(0,3).toUpperCase();\n    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');\n    const shortHash = Math.random().toString(36).substring(2, 6).toUpperCase();\n    const taskId = (t.Task_ID && t.Task_ID.trim() !== \"\") ? t.Task_ID : `TSK-${dateStr}-${safeName}-${shortHash}`;\n    const dept = DEPT_MAP[t.Assigned_To] || \"Other\";\n    return { json: { \"task_id\": taskId, \"date\": new Date().toLocaleDateString('en-GB'), \"description\": t.Task_Description || \"-\", \"assigned_to\": t.Assigned_To || \"-\", \"assigned_by\": t.Assigned_By || \"-\", \"department\": dept, \"deadline\": t.Deadline || \"\", \"priority\": \"Normal\", \"status\": t.Status || \"Pending\", \"reason\": t.Reason || \"\", \"source\": t.Source || \"Meeting Transcript\", \"updated_by\": \"n8n Automation\", \"last_updated\": new Date().toISOString(), \"Checklist\": t.Checklist || [] } };\n});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2176,
-        400
+        3664,
+        1568
       ],
-      "id": "2fb82c52-80c4-4393-acc5-9c6cec8823e4",
+      "id": "1cd3e24f-ed04-4056-926b-6756e8544550",
       "name": "Extract & Map Tasks"
     },
     {
@@ -444,837 +292,157 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2176,
-        704
+        3664,
+        1872
       ],
-      "id": "7c833505-4632-48e7-b779-9572174e6cc7",
+      "id": "a3bbbc35-4c43-4b66-968d-01e5d70899c2",
       "name": "Extract Reports"
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Stauff Task Orch",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1931533029,
-          "mode": "list",
-          "cachedResultName": "Tasks",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1931533029"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Task ID": "={{ $json['Task ID'] }}",
-            "Date": "={{ $json['Task Description'][0].date }}",
-            "Task Description": "={{ $json['Task Description'][0].goal }}",
-            "Assigned To": "={{ $json['Assigned To'] }}",
-            "Assigned By": "={{ $json['Assigned By'] }}",
-            "Department": "={{ $json.Department }}",
-            "Deadline": "={{ $json['Task Description'][0].deadline }}",
-            "Priority": "={{ $json.Priority }}",
-            "Status": "={{ $json.Status }}",
-            "Reason": "={{ $json.Reason }}",
-            "Source": "={{ $json.Source }}",
-            "Updated By": "={{ $json['Updated By'] }}",
-            "Last Updated": "={{ $json['Last Updated'] }}"
-          },
-          "matchingColumns": [
-            "Task ID"
-          ],
-          "schema": [
-            {
-              "id": "Task ID",
-              "displayName": "Task ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Date",
-              "displayName": "Date",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Task Description",
-              "displayName": "Task Description",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Assigned To",
-              "displayName": "Assigned To",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Assigned By",
-              "displayName": "Assigned By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Department",
-              "displayName": "Department",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Deadline",
-              "displayName": "Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Priority",
-              "displayName": "Priority",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Reason",
-              "displayName": "Reason",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Source",
-              "displayName": "Source",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Updated By",
-              "displayName": "Updated By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Last Updated",
-              "displayName": "Last Updated",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "create",
+        "tableId": "tasks",
+        "options": {},
+        "dataMode": "autoMapInputData"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        1280,
-        0
+        2768,
+        1168
       ],
-      "id": "cecf28db-25cf-4043-9231-587faef94aa5",
+      "id": "95b5b7dd-7a2f-48a3-9695-5ab98facbef3",
       "name": "Upsert Tasks (Daily Goals)",
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Copy of BalPigeon",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1931533029,
-          "mode": "list",
-          "cachedResultName": "Tasks",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1931533029"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Task ID": "={{ $json['Task ID'] }}",
-            "Date": "={{ $json.Date }}",
-            "Task Description": "={{ $json['Task Description'] }}",
-            "Assigned To": "={{ $json['Assigned To'] }}",
-            "Assigned By": "={{ $json['Assigned By'] }}",
-            "Department": "={{ $json.Department }}",
-            "Deadline": "={{ $json.Deadline }}",
-            "Priority": "={{ $json.Priority }}",
-            "Status": "={{ $json.Status }}",
-            "Reason": "={{ $json.Reason }}",
-            "Source": "={{ $json.Source }}",
-            "Updated By": "={{ $json['Updated By'] }}",
-            "Last Updated": "={{ $json['Last Updated'] }}"
-          },
-          "matchingColumns": [
-            "Task ID"
-          ],
-          "schema": [
-            {
-              "id": "Task ID",
-              "displayName": "Task ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Date",
-              "displayName": "Date",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Task Description",
-              "displayName": "Task Description",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Assigned To",
-              "displayName": "Assigned To",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Assigned By",
-              "displayName": "Assigned By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Department",
-              "displayName": "Department",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Deadline",
-              "displayName": "Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Priority",
-              "displayName": "Priority",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Reason",
-              "displayName": "Reason",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Source",
-              "displayName": "Source",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Updated By",
-              "displayName": "Updated By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Last Updated",
-              "displayName": "Last Updated",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "create",
+        "tableId": "tasks",
+        "options": {},
+        "dataMode": "autoMapInputData"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        2416,
-        400
+        3904,
+        1568
       ],
-      "id": "e3a6e579-3a53-4705-a73d-fd7e2d76a3af",
+      "id": "f5599bb3-b1cd-4fd3-a470-02f7389018e8",
       "name": "Upsert Tasks (Transcript)",
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Copy of BalPigeon",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1931533029,
-          "mode": "list",
-          "cachedResultName": "Tasks",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1931533029"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Task ID": "={{ $json['Task ID'] }}",
-            "Date": "={{ $json.Date }}",
-            "Task Description": "={{ $json['Task Description'] }}",
-            "Assigned To": "={{ $json['Assigned To'] }}",
-            "Assigned By": "={{ $json['Assigned By'] }}",
-            "Department": "={{ $json.Department }}",
-            "Deadline": "={{ $json.Deadline }}",
-            "Priority": "={{ $json.Priority }}",
-            "Status": "={{ $json.Status }}",
-            "Reason": "={{ $json.Reason }}",
-            "Source": "={{ $json.Source }}",
-            "Updated By": "={{ $json['Updated By'] }}",
-            "Last Updated": "={{ $json['Last Updated'] }}"
-          },
-          "matchingColumns": [
-            "Task ID"
-          ],
-          "schema": [
-            {
-              "id": "Task ID",
-              "displayName": "Task ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Date",
-              "displayName": "Date",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Task Description",
-              "displayName": "Task Description",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Assigned To",
-              "displayName": "Assigned To",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Assigned By",
-              "displayName": "Assigned By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Department",
-              "displayName": "Department",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Deadline",
-              "displayName": "Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Priority",
-              "displayName": "Priority",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Reason",
-              "displayName": "Reason",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Source",
-              "displayName": "Source",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Updated By",
-              "displayName": "Updated By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Last Updated",
-              "displayName": "Last Updated",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "update",
+        "tableId": "tasks",
+        "options": {},
+        "dataMode": "autoMapInputData",
+        "matchColumns": "task_id"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        1280,
-        672
+        2768,
+        1840
       ],
-      "id": "3dbf7edf-24d9-465c-bb7a-1a8e8a6bdc78",
+      "id": "055d63ce-0ef2-4a09-8129-4f7455a01bba",
       "name": "Upsert Tasks (Live Updates)",
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Copy of BalPigeon",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "gid=0",
-          "mode": "list",
-          "cachedResultName": "Boss",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=0"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Date": "={{ $json.Date }}",
-            "Report": "={{ $json.Report }}",
-            "Name": "={{ $json.Name }}",
-            "Rating": "={{ $json.Rating }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "Date",
-              "displayName": "Date",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Name",
-              "displayName": "Name",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Report",
-              "displayName": "Report",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Rating",
-              "displayName": "Rating",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "create",
+        "tableId": "tasks",
+        "options": {},
+        "dataMode": "autoMapInputData"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        2784,
-        912
+        4272,
+        2080
       ],
-      "id": "c4c1ae47-dbbf-4551-a194-72b6a0f33e81",
+      "id": "2e0765f3-f9db-413a-a1fa-1c650bcbbf24",
       "name": "Append Boss",
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst uiUpdates = payload.individual_updates || []; \nconst DEPT_MAP = { \"Ganesh\": \"PO department\", \"Shreyash\": \"SO department\", \"Shruti\": \"Sales Department\", \"Vaishnavi\": \"Logistics Department\" };\n\nconst splitItems = uiUpdates.map(task => {\n  const dept = DEPT_MAP[task[\"Assigned To\"]] || \"Other\";\n  return { json: { \"Goal ID\": task[\"Task ID\"], \"Task ID\": task[\"Task ID\"], \"Date\": task[\"Date\"], \"Task Description\": task[\"Task Description\"], \"Goal\": task[\"Task Description\"], \"Assigned To\": task[\"Assigned To\"], \"Assigned By\": task[\"Assigned By\"], \"Given By\": task[\"Assigned By\"], \"Department\": dept, \"Deadline\": task[\"Deadline\"], \"Priority\": task[\"Priority\"] || \"Normal\", \"Status\": task[\"Status\"], \"Reason\": task[\"Reason\"] || \"\", \"Source\": task[\"Source\"], \"Updated By\": \"UI Input\", \"Last Updated\": new Date().toISOString() } };\n});\nreturn splitItems;"
+        "jsCode": "const rawText = $input.first().json[\"Paste The JSON\"]; \nconst payload = JSON.parse(rawText);\nconst uiUpdates = payload.individual_updates || []; \nconst DEPT_MAP = { \"Ganesh\": \"PO department\", \"Shreyash\": \"SO department\", \"Shruti\": \"Sales Department\", \"Vaishnavi\": \"Logistics Department\" };\n\nconst splitItems = uiUpdates.map(task => {\n  const dept = DEPT_MAP[task[\"Assigned To\"]] || \"Other\";\n  return { json: { \"goal_id\": task[\"Task ID\"], \"task_id\": task[\"Task ID\"], \"date\": task[\"Date\"], \"description\": task[\"Task Description\"], \"goal\": task[\"Task Description\"], \"assigned_to\": task[\"Assigned To\"], \"assigned_by\": task[\"Assigned By\"], \"given_by\": task[\"Assigned By\"], \"department\": dept, \"deadline\": task[\"Deadline\"], \"priority\": task[\"Priority\"] || \"Normal\", \"status\": task[\"Status\"], \"reason\": task[\"Reason\"] || \"\", \"source\": task[\"Source\"], \"updated_by\": \"UI Input\", \"last_updated\": new Date().toISOString() } };\n});\nreturn splitItems;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        976,
-        672
+        2464,
+        1840
       ],
-      "id": "94b30e0b-1cbb-4647-98ec-0d23ef37e01f",
+      "id": "4fe6e41f-6ee0-4343-9425-825665ce4865",
       "name": "Format Live Updates"
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Copy of BalPigeon",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1837353468,
-          "mode": "list",
-          "cachedResultName": "Goals",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Goal ID": "={{ $json['Task ID'] }}",
-            "Assigned To": "={{ $json['Assigned To'] }}",
-            "Goal": "={{ $json['Task Description'] }}",
-            "Deadline": "={{ $json.Deadline }}",
-            "Status": "={{ $json.Status }}",
-            "Reason": "={{ $json.Reason }}",
-            "Updated By": "={{ $json['Updated By'] }}",
-            "Last Updated": "={{ $json['Last Updated'] }}",
-            "Week/Month": "={{ $json.Date }}",
-            "Given By": "={{ $json['Given By'] }}",
-            "Time Frame": "Monthly"
-          },
-          "matchingColumns": [
-            "Goal ID"
-          ],
-          "schema": [
-            {
-              "id": "Goal ID",
-              "displayName": "Goal ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Time Frame",
-              "displayName": "Time Frame",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Week/Month",
-              "displayName": "Week/Month",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Assigned To",
-              "displayName": "Assigned To",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Given By",
-              "displayName": "Given By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Goal",
-              "displayName": "Goal",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Deadline",
-              "displayName": "Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Reason",
-              "displayName": "Reason",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Updated By",
-              "displayName": "Updated By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Last Updated",
-              "displayName": "Last Updated",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "update",
+        "tableId": "monthly_goals",
+        "options": {},
+        "dataMode": "autoMapInputData",
+        "matchColumns": "goal_id"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        1280,
-        816
+        2768,
+        1984
       ],
-      "id": "bfe3ec4b-2d47-40f0-a7aa-b0e3f3544a98",
+      "id": "d5c85114-b5b2-4c98-9124-b9b83e23f3b9",
       "name": "Upsert Goals from Updates",
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Copy of BalPigeon",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1931533029,
-          "mode": "list",
-          "cachedResultName": "Tasks",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1931533029"
-        },
-        "filtersUI": {
-          "values": [
-            {
-              "lookupColumn": "Date",
-              "lookupValue": "={{ $now.setZone('Asia/Kolkata').toFormat('dd/MM/yyyy') }}"
-            }
-          ]
-        },
-        "options": {}
+        "operation": "getAll",
+        "tableId": "tasks",
+        "options": {},
+        "dataMode": "autoMapInputData"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        1184,
-        512
+        2672,
+        1680
       ],
-      "id": "9a6b3baf-76c7-4270-9409-6831b1d6cae8",
+      "id": "473cd278-9e02-4e6c-bf23-332e40050060",
       "name": "Fetch All Tasks Context",
       "alwaysOutputData": true,
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
@@ -1305,191 +473,63 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2384,
-        704
+        3872,
+        1872
       ],
-      "id": "5fa361b8-5369-4635-9edf-d980b5b1392f",
+      "id": "628702aa-9c77-445b-95ee-254a11d6cc5f",
       "name": "If"
     },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "monthly-goals-update",
-        "options": {}
+        "options": {},
+        "responseMode": "onReceived",
+        "responseData": "empty"
       },
-      "id": "f05bf160-c0f8-47d6-822b-996c420cf428",
+      "id": "ea7961d0-88f4-41ce-9bdd-1e7343f932c1",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
-        2704,
-        576
+        4192,
+        1744
       ],
       "webhookId": "22bae45d-1205-49c5-a5dc-0aa13332be5e"
     },
     {
       "parameters": {
-        "jsCode": "const payload = $input.first().json.body || $input.first().json;\nconst uiUpdates = payload.individual_updates || [];\nconst splitItems = [];\nfor (const task of uiUpdates) {\n  splitItems.push({ json: { \"Goal ID\": task[\"Task ID\"], \"Assigned To\": task[\"Assigned To\"], \"Task Description\": task[\"Task Description\"], \"Deadline\": task[\"Deadline\"], \"Status\": task[\"Status\"], \"Reason\": task[\"Reason\"] || \"\", \"Updated By\": \"UI Input\", \"Last Updated\": new Date().toISOString() } });\n}\nreturn splitItems;"
+        "jsCode": "const payload = $input.first().json.body || $input.first().json;\nconst uiUpdates = payload.individual_updates || [];\nconst splitItems = [];\nfor (const task of uiUpdates) {\n  splitItems.push({ json: { \"goal_id\": task[\"Task ID\"], \"assigned_to\": task[\"Assigned To\"], \"description\": task[\"Task Description\"], \"deadline\": task[\"Deadline\"], \"status\": task[\"Status\"], \"reason\": task[\"Reason\"] || \"\", \"updated_by\": \"UI Input\", \"last_updated\": new Date().toISOString() } });\n}\nreturn splitItems;"
       },
-      "id": "5a77a34a-517a-4299-bf2e-063d930adec3",
+      "id": "fb55b236-7b0b-45b5-8fbf-593f09ec50f4",
       "name": "Format Updates",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2928,
-        576
+        4416,
+        1744
       ]
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Stauff Task Orch",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1837353468,
-          "mode": "list",
-          "cachedResultName": "Goals",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1837353468"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Goal ID": "={{ $json['Goal ID'] }}",
-            "Assigned To": "={{ $json['Assigned To'] }}",
-            "Deadline": "={{ $json.Deadline }}",
-            "Status": "={{ $json.Status }}",
-            "Reason": "={{ $json.Reason }}",
-            "Updated By": "={{ $json['Updated By'] }}",
-            "Last Updated": "={{ $json['Last Updated'] }}"
-          },
-          "matchingColumns": [
-            "Goal ID"
-          ],
-          "schema": [
-            {
-              "id": "Goal ID",
-              "displayName": "Goal ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Time Frame",
-              "displayName": "Time Frame",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Week/Month",
-              "displayName": "Week/Month",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Assigned To",
-              "displayName": "Assigned To",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Given By",
-              "displayName": "Given By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Goal",
-              "displayName": "Goal",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Deadline",
-              "displayName": "Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Reason",
-              "displayName": "Reason",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Updated By",
-              "displayName": "Updated By",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Last Updated",
-              "displayName": "Last Updated",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "update",
+        "tableId": "monthly_goals",
+        "options": {},
+        "dataMode": "autoMapInputData",
+        "matchColumns": "goal_id"
       },
-      "id": "f28f315e-99e3-4ac0-b3f2-21736398008e",
+      "id": "4ed04b27-95dc-4be4-9aa3-8e3c3917384a",
       "name": "Update Goals Sheet",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        3152,
-        576
+        4640,
+        1744
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
@@ -1497,15 +537,17 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "extension-requests",
-        "options": {}
+        "options": {},
+        "responseMode": "onReceived",
+        "responseData": "empty"
       },
-      "id": "1389e0e4-fd17-42b2-a22b-e1b225724ccb",
+      "id": "e3dcd34f-56cc-4287-b087-45ae864ba7c0",
       "name": "Extension Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
       "position": [
-        2064,
-        96
+        3552,
+        1264
       ],
       "webhookId": "extension-requests-webhook"
     },
@@ -1562,378 +604,102 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        2304,
-        96
+        3792,
+        1264
       ],
-      "id": "c45f9657-495a-464e-a430-054a0ea5911d",
+      "id": "f6e849a6-f1e1-46ee-86c6-ca72d4a5a244",
       "name": "Action Router"
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    \"ID\": body.id,\n    \"Task ID\": body.task_id,\n    \"Task Description\": body.task_description,\n    \"Employee\": body.employee,\n    \"Department\": body.department || \"\",\n    \"Current Deadline\": body.current_deadline,\n    \"Requested Deadline\": body.requested_deadline,\n    \"Reason\": body.reason,\n    \"Status\": \"Pending\",\n    \"Manager Deadline\": \"\",\n    \"Manager Note\": \"\",\n    \"Submitted At\": body.submitted_at,\n    \"Decided At\": \"\"\n  }\n}];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    \"request_id\": body.id,\n    \"task_id\": body.task_id,\n    \"description\": body.task_description,\n    \"employee_name\": body.employee,\n    \"department\": body.department || \"\",\n    \"current_deadline\": body.current_deadline,\n    \"requested_deadline\": body.requested_deadline,\n    \"reason\": body.reason,\n    \"status\": \"Pending\",\n    \"manager_deadline\": \"\",\n    \"manager_note\": \"\",\n    \"created_at\": body.submitted_at,\n    \"decided_at\": \"\"\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2544,
-        -16
+        4032,
+        1152
       ],
-      "id": "cc1f6388-e3fd-4609-9f9d-a8634d5b85dc",
+      "id": "6301b84e-71c0-405f-b3b9-0fbb5f6f7996",
       "name": "Format New Request"
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Copy of BalPigeon",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1895469142,
-          "mode": "list",
-          "cachedResultName": "Extensions",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1895469142"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "ID": "={{ $json.ID }}",
-            "Task ID": "={{ $json['Task ID'] }}",
-            "Task Description": "={{ $json['Task Description'] }}",
-            "Employee": "={{ $json.Employee }}",
-            "Department": "={{ $json.Department }}",
-            "Current Deadline": "={{ $json['Current Deadline'] }}",
-            "Requested Deadline": "={{ $json['Requested Deadline'] }}",
-            "Reason": "={{ $json.Reason }}",
-            "Status": "={{ $json.Status }}",
-            "Manager Deadline": "={{ $json['Manager Deadline'] }}",
-            "Manager Note": "={{ $json['Manager Note'] }}",
-            "Submitted At": "={{ $json['Submitted At'] }}",
-            "Decided At": "={{ $json['Decided At'] }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "ID",
-              "displayName": "ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Task ID",
-              "displayName": "Task ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Task Description",
-              "displayName": "Task Description",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Employee",
-              "displayName": "Employee",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Department",
-              "displayName": "Department",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Current Deadline",
-              "displayName": "Current Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Requested Deadline",
-              "displayName": "Requested Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Reason",
-              "displayName": "Reason",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Manager Deadline",
-              "displayName": "Manager Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Manager Note",
-              "displayName": "Manager Note",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Submitted At",
-              "displayName": "Submitted At",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Decided At",
-              "displayName": "Decided At",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "create",
+        "tableId": "extension_requests",
+        "options": {},
+        "dataMode": "autoMapInputData"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        2784,
-        -16
+        4272,
+        1152
       ],
-      "id": "99352bd0-4391-4b1c-b8de-b550af69476c",
+      "id": "fe9844bf-e5c7-431d-8ba3-3fc7ad43dc97",
       "name": "Append Extension Request",
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    \"ID\": body.id,\n    \"Status\": body.status,\n    \"Manager Deadline\": body.manager_deadline || \"\",\n    \"Manager Note\": body.manager_note || \"\",\n    \"Decided At\": body.decided_at\n  }\n}];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    \"request_id\": body.id,\n    \"status\": body.status,\n    \"manager_deadline\": body.manager_deadline || \"\",\n    \"manager_note\": body.manager_note || \"\",\n    \"decided_at\": body.decided_at\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2544,
-        192
+        4032,
+        1360
       ],
-      "id": "9d5ea0b6-c4fc-4611-b585-39c690837fdb",
+      "id": "287e8368-1026-45f3-8573-5b08230f17a2",
       "name": "Format Decision"
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "value": "1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4",
-          "mode": "list",
-          "cachedResultName": "Copy of BalPigeon",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 1895469142,
-          "mode": "list",
-          "cachedResultName": "Extensions",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-FHIzz0ACiGN-vwd0ABITj8FVei7pwEYiJIFDGBqEf4/edit#gid=1895469142"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "ID": "={{ $json.ID }}",
-            "Status": "={{ $json.Status }}",
-            "Manager Deadline": "={{ $json['Manager Deadline'] }}",
-            "Manager Note": "={{ $json['Manager Note'] }}",
-            "Decided At": "={{ $json['Decided At'] }}"
-          },
-          "matchingColumns": [
-            "ID"
-          ],
-          "schema": [
-            {
-              "id": "ID",
-              "displayName": "ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Task ID",
-              "displayName": "Task ID",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Task Description",
-              "displayName": "Task Description",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Employee",
-              "displayName": "Employee",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Department",
-              "displayName": "Department",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Current Deadline",
-              "displayName": "Current Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Requested Deadline",
-              "displayName": "Requested Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Reason",
-              "displayName": "Reason",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Status",
-              "displayName": "Status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Manager Deadline",
-              "displayName": "Manager Deadline",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Manager Note",
-              "displayName": "Manager Note",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Submitted At",
-              "displayName": "Submitted At",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Decided At",
-              "displayName": "Decided At",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "operation": "update",
+        "tableId": "extension_requests",
+        "options": {},
+        "dataMode": "autoMapInputData",
+        "matchColumns": "request_id"
       },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
       "position": [
-        2784,
-        192
+        4272,
+        1360
       ],
-      "id": "a766d3d1-1ff0-43ce-b741-62ffa658742f",
+      "id": "44c8e212-228a-4e7c-9ec2-ec9f25fca372",
       "name": "Update Extension Decision",
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "e1MbcUzueWdnMKx5",
-          "name": "Google Sheets account"
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "company_sops",
+        "options": {},
+        "dataMode": "autoMapInputData"
+      },
+      "id": "fetch-sops-postgres",
+      "name": "Fetch SOPs",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2864,
+        1880
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CRED_ID",
+          "name": "Supabase API"
         }
       }
     }
@@ -2079,7 +845,7 @@
       "main": [
         [
           {
-            "node": "Prep LLM Payload",
+            "node": "Fetch SOPs",
             "type": "main",
             "index": 0
           }
@@ -2245,6 +1011,17 @@
           }
         ]
       ]
+    },
+    "Fetch SOPs": {
+      "main": [
+        [
+          {
+            "node": "Prep LLM Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -2252,7 +1029,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "183d95a6-ab6e-4efa-9fec-3eb88c228f0c",
+  "versionId": "760e89ed-5744-4c79-a585-22f4fa275eae",
   "meta": {
     "instanceId": "5ef644fd2c07e9b5102bcb60029a5fd4b92657c261e4bae43282daec5b976f0c"
   },

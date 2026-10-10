@@ -2,6 +2,8 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import ttk
 from typing import List, Callable, Dict, Any, Optional
+import os
+from PIL import Image, ImageTk
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -260,6 +262,112 @@ class DataTable(ctk.CTkFrame):
         self.tree.heading(col_id, command=lambda: self._sort_column(col_id, not reverse))
 
 
+class ModernCardTable(ctk.CTkScrollableFrame):
+    def __init__(self, master, columns: List[Dict[str, Any]], data: List[Dict[str, Any]] = None,
+                 double_click_callback: Callable = None, **kwargs):
+        super().__init__(master, fg_color="transparent", **kwargs)
+        self.double_click_callback = double_click_callback
+        self.columns = columns
+        self.data = data or []
+        
+        self._build_header()
+        self.rows_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.rows_frame.pack(fill="both", expand=True)
+        self._load_data(self.data)
+
+    def _build_header(self):
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 10), padx=5)
+        for i, col in enumerate(self.columns):
+            weight = col.get("weight", 1)
+            header_frame.grid_columnconfigure(i, weight=int(weight*10), uniform="col")
+            lbl = ctk.CTkLabel(header_frame, text=col["title"].upper(), font=FONT_BOLD, text_color=TEXT_MUTED, anchor="w")
+            lbl.grid(row=0, column=i, sticky="w", padx=10)
+
+    def _load_data(self, data):
+        for widget in self.rows_frame.winfo_children():
+            widget.destroy()
+        
+        for row_data in data:
+            card = ctk.CTkFrame(self.rows_frame, fg_color=CARD_BG, border_width=1, border_color=BORDER_COLOR, corner_radius=8)
+            card.pack(fill="x", pady=4, padx=2)
+            
+            def bind_card_events(widget):
+                def on_enter(e, c=card):
+                    c.configure(fg_color="#f8fafc", border_color="#cbd5e1")
+                def on_leave(e, c=card):
+                    c.configure(fg_color=CARD_BG, border_color=BORDER_COLOR)
+                widget.bind("<Enter>", on_enter, add="+")
+                widget.bind("<Leave>", on_leave, add="+")
+                if self.double_click_callback:
+                    widget.bind("<Double-1>", lambda e, d=row_data: self.double_click_callback(d))
+                    
+            bind_card_events(card)
+
+            for i, col in enumerate(self.columns):
+                weight = col.get("weight", 1)
+                card.grid_columnconfigure(i, weight=int(weight*10), uniform="col")
+                
+                val = row_data.get(col["id"], "")
+                
+                cell_frame = ctk.CTkFrame(card, fg_color="transparent")
+                cell_frame.grid(row=0, column=i, sticky="w", padx=10, pady=12)
+                bind_card_events(cell_frame)
+
+                if col.get("type") == "pill":
+                    color = "#e2e8f0"
+                    text_color = "#475569"
+                    val_lower = str(val).lower()
+                    if "completed" in val_lower or "done" in val_lower:
+                        color = "#dcfce7"; text_color = "#166534"
+                    elif "delayed" in val_lower or "overdue" in val_lower:
+                        color = "#fee2e2"; text_color = "#991b1b"
+                    elif "pending" in val_lower or "in progress" in val_lower or "active" in val_lower:
+                        color = "#dbeafe"; text_color = "#1e40af"
+                    elif "high" in val_lower or "urgent" in val_lower or "mrp" in val_lower:
+                        color = "#fef08a"; text_color = "#854d0e"
+                    elif "rfq" in val_lower:
+                        color = "#f3e8ff"; text_color = "#7e22ce"
+                        
+                    pill = ctk.CTkLabel(cell_frame, text=str(val).upper()[:15], font=("Inter", 10, "bold"),
+                                        fg_color=color, text_color=text_color, corner_radius=4, padx=8, pady=2)
+                    pill.pack(anchor="w")
+                    bind_card_events(pill)
+                
+                elif col.get("type") == "progress":
+                    prog_val = float(val) if val else 0.0
+                    prog_frame = ctk.CTkFrame(cell_frame, fg_color="transparent")
+                    prog_frame.pack(anchor="w", fill="x", expand=True)
+                    bind_card_events(prog_frame)
+                    
+                    bar = ctk.CTkProgressBar(prog_frame, width=80, height=8, corner_radius=4, progress_color=ACCENT_COLOR, fg_color=BORDER_COLOR)
+                    bar.set(prog_val / 100.0)
+                    bar.pack(side="left")
+                    bind_card_events(bar)
+                    
+                    pct = ctk.CTkLabel(prog_frame, text=f"{int(prog_val)}%", font=FONT_SMALL, text_color=TEXT_MUTED)
+                    pct.pack(side="left", padx=(5, 0))
+                    bind_card_events(pct)
+                    
+                elif col.get("type") == "action":
+                    btn = ctk.CTkButton(cell_frame, text="→", font=("Inter", 16, "bold"), fg_color="transparent", 
+                                        text_color=TEXT_MUTED, hover_color=BG_COLOR, width=30,
+                                        command=lambda d=row_data: self.double_click_callback(d) if self.double_click_callback else None)
+                    btn.pack(anchor="w")
+                
+                else:
+                    text_val = str(val)
+                    if len(text_val) > 40: text_val = text_val[:37] + "..."
+                    lbl = ctk.CTkLabel(cell_frame, text=text_val, font=FONT_MAIN, text_color=TEXT_COLOR)
+                    lbl.pack(anchor="w")
+                    bind_card_events(lbl)
+
+    def update_data(self, new_data: List[Dict[str, Any]]):
+        self.data = new_data
+        self._load_data(self.data)
+
+
+
 class FilterBar(ctk.CTkFrame):
     def __init__(self, master, filter_options: List[Dict[str, Any]], on_filter_change: Callable, **kwargs):
         super().__init__(master, fg_color=CARD_BG, border_width=1,
@@ -327,6 +435,20 @@ class TimelineTracker(ctk.CTkFrame):
         self.canvas = tk.Canvas(self.canvas_frame, bg=CARD_BG, highlightthickness=0, height=140)
         self.canvas.pack(fill="both", expand=True)
         
+        # Load custom icons
+        try:
+            assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets')
+            
+            x_img = Image.open(os.path.join(assets_dir, 'x_icon.png')).resize((40, 40), Image.LANCZOS)
+            tick_img = Image.open(os.path.join(assets_dir, 'tick_icon.png')).resize((40, 40), Image.LANCZOS)
+            
+            self.x_icon = ImageTk.PhotoImage(x_img)
+            self.tick_icon = ImageTk.PhotoImage(tick_img)
+        except Exception as e:
+            print(f"Error loading custom icons: {e}")
+            self.x_icon = None
+            self.tick_icon = None
+
         self.canvas.bind("<Configure>", self._draw_timeline)
         
     def _draw_timeline(self, event=None):
@@ -357,17 +479,24 @@ class TimelineTracker(ctk.CTkFrame):
             
             # Outer halo / badge circle
             r = 20
-            self.canvas.create_oval(x - r, y - r, x + r, y + r, fill=color, outline="")
             
-            # White icon inside circle
-            if is_bottleneck:
-                # X icon
-                self.canvas.create_line(x - 7, y - 7, x + 7, y + 7, fill="white", width=3, capstyle="round")
-                self.canvas.create_line(x - 7, y + 7, x + 7, y - 7, fill="white", width=3, capstyle="round")
+            if is_bottleneck and getattr(self, 'x_icon', None):
+                self.canvas.create_oval(x - r, y - r, x + r, y + r, fill="white", outline="")
+                self.canvas.create_image(x, y, image=self.x_icon)
+            elif not is_bottleneck and getattr(self, 'tick_icon', None):
+                self.canvas.create_oval(x - r, y - r, x + r, y + r, fill="white", outline="")
+                self.canvas.create_image(x, y, image=self.tick_icon)
             else:
-                # Checkmark icon
-                self.canvas.create_line(x - 6, y, x - 1, y + 6, fill="white", width=3, capstyle="round")
-                self.canvas.create_line(x - 1, y + 6, x + 8, y - 5, fill="white", width=3, capstyle="round")
+                self.canvas.create_oval(x - r, y - r, x + r, y + r, fill=color, outline="")
+                # White icon inside circle
+                if is_bottleneck:
+                    # X icon
+                    self.canvas.create_line(x - 7, y - 7, x + 7, y + 7, fill="white", width=3, capstyle="round")
+                    self.canvas.create_line(x - 7, y + 7, x + 7, y - 7, fill="white", width=3, capstyle="round")
+                else:
+                    # Checkmark icon
+                    self.canvas.create_line(x - 6, y, x - 1, y + 6, fill="white", width=3, capstyle="round")
+                    self.canvas.create_line(x - 1, y + 6, x + 8, y - 5, fill="white", width=3, capstyle="round")
                 
             # Department name
             self.canvas.create_text(x, y + 34, text=dept.get("name", ""), fill=TEXT_COLOR, font=("Inter", 13, "bold"))

@@ -16,6 +16,7 @@ class Goal:
     priority: str = "Normal"
     updated_by: str = ""
     last_updated: str = ""
+    checklist: list = field(default_factory=list)
 
 @dataclass
 class Task:
@@ -31,6 +32,7 @@ class Task:
     source: str = ""
     updated_by: str = ""
     last_updated: str = ""
+    checklist: list = field(default_factory=list)
 
 @dataclass
 class Report:

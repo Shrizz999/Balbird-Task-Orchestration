@@ -1,8 +1,9 @@
 import requests
 import json
 import time
+from config import N8N_WEBHOOK_URL
 
-webhook_url = "https://n8n.srv1463077.hstgr.cloud/form/280e1709-fbed-4560-a10c-9f96956654b8"
+webhook_url = N8N_WEBHOOK_URL
 payload = {
     "individual_updates": [
         {

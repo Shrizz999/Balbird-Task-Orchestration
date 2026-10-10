@@ -25,6 +25,7 @@ from services.extension_store import (
     get_all_requests,
     decide_request,
 )
+from services.local_sync import record_task_update
 from .components import (
     BG_COLOR, CARD_BG, BORDER_COLOR, TEXT_COLOR, TEXT_MUTED,
     ACCENT_COLOR, FONT_H1, FONT_BOLD, FONT_MAIN, FONT_SMALL, CHART_COLORS,
@@ -150,14 +151,14 @@ class ExtensionRequestsView(ctk.CTkFrame):
         details.grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=(10, 4))
         details.grid_columnconfigure(0, weight=1)
 
-        # Employee + task ID
+        short_id = str(req['task_id'])[-4:] if req.get('task_id') else ""
         ctk.CTkLabel(details,
-                     text=f"{req['employee']}  —  Task [{req['task_id']}]",
+                     text=f"{req['employee']}  —  Task [{short_id}]",
                      font=FONT_BOLD, text_color=TEXT_COLOR).grid(
                          row=0, column=0, sticky="w")
 
         # Task description
-        desc = req.get("task_description", "")
+        desc = req.get("task_description") or ""
         if len(desc) > 100:
             desc = desc[:100] + "…"
         ctk.CTkLabel(details, text=desc, font=FONT_MAIN,
@@ -173,7 +174,26 @@ class ExtensionRequestsView(ctk.CTkFrame):
         ctk.CTkLabel(dl_frame, text=f"Requested: {req['requested_deadline']}",
                      font=("Inter", 10, "bold"), text_color=ACCENT_COLOR).pack(side="left", padx=(0, 15))
         ctk.CTkLabel(dl_frame, text=f"Submitted: {req['submitted_at']}",
-                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(side="left")
+                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(side="left", padx=(0, 15))
+
+        # Calculate days past deadline and past extensions count
+        from datetime import datetime
+        days_past = 0
+        if req.get('current_deadline'):
+            for fmt in ("%d/%m/%Y", "%d/%m", "%d/%m/%Y %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d", "%m/%d/%Y", "%Y/%m/%d"):
+                try:
+                    dt = datetime.strptime(req['current_deadline'].strip(), fmt)
+                    delta = (datetime.now() - dt).days
+                    if delta > 0:
+                        days_past = delta
+                    break
+                except (ValueError, AttributeError):
+                    pass
+                    
+        past_ext_count = len([r for r in self._all_requests if r.get("task_id") == req.get("task_id") and r.get("status") == "Approved" and r.get("id") != req.get("id")])
+        
+        info_str = f"Past extensions: {past_ext_count}  |  Days past deadline: {days_past}"
+        ctk.CTkLabel(dl_frame, text=info_str, font=("Inter", 10, "bold"), text_color="#ef4444").pack(side="left")
 
         # Reason
         ctk.CTkLabel(details, text=f"Reason: {req['reason']}",
@@ -261,6 +281,14 @@ class ExtensionRequestsView(ctk.CTkFrame):
                         "Last Updated": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                     }
                     n8n.submit_live_updates([update_payload])
+                    # Write optimistic local override for instant sync
+                    record_task_update(task_obj.id, {
+                        "Status": "Pending",
+                        "Deadline": custom_dl,
+                        "Reason": update_payload["Reason"],
+                        "Updated By": "Manager UI",
+                        "Last Updated": update_payload["Last Updated"],
+                    })
                 except Exception as e:
                     print(f"Failed to update Google Sheet via n8n: {e}")
                     
@@ -295,6 +323,14 @@ class ExtensionRequestsView(ctk.CTkFrame):
                         "Last Updated": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                     }
                     n8n.submit_live_updates([update_payload])
+                    # Write optimistic local override for instant sync
+                    record_task_update(task_obj.id, {
+                        "Status": "Pending",
+                        "Deadline": req["current_deadline"],
+                        "Reason": update_payload["Reason"],
+                        "Updated By": "Manager UI",
+                        "Last Updated": update_payload["Last Updated"],
+                    })
                 except Exception as e:
                     print(f"Failed to update Google Sheet via n8n: {e}")
                     

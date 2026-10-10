@@ -6,6 +6,7 @@ from typing import List, Dict
 import requests
 from config import CSV_FILES, USE_LOCAL_CSV, SHEET_BASE_URL, SHEET_GIDS
 from models.data_models import Goal, Task, Report
+from services.local_sync import merge_task_overrides_into_list, merge_goal_overrides_into_list
 
 class SheetsClient:
     def __init__(self):
@@ -59,7 +60,7 @@ class SheetsClient:
                 updated_by=row.get("Updated By", ""),
                 last_updated=row.get("Last Updated", "")
             ))
-        return goals
+        return merge_goal_overrides_into_list(goals)
 
     def fetch_daily_goals(self) -> List[Goal]:
         return [g for g in self.fetch_all_goals() if g.time_frame == "Daily"]
@@ -90,7 +91,7 @@ class SheetsClient:
                 updated_by=row.get("Updated By", ""),
                 last_updated=row.get("Last Updated", "")
             ))
-        return tasks
+        return merge_task_overrides_into_list(tasks)
 
     def fetch_boss_reports(self) -> List[Report]:
         raw_data = self._fetch_csv_data("Boss")

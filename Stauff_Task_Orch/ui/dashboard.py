@@ -19,7 +19,7 @@ STATUS_COLORS = {
 
 def _parse_date(date_str: str):
     """Try parsing common date formats and return a datetime or None."""
-    for fmt in ("%d/%m/%Y", "%d/%m", "%d/%m/%Y %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+    for fmt in ("%d/%m/%Y", "%d/%m", "%d/%m/%Y %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d", "%m/%d/%Y", "%Y/%m/%d"):
         try:
             return datetime.strptime(date_str.strip(), fmt)
         except (ValueError, AttributeError):
@@ -28,13 +28,13 @@ def _parse_date(date_str: str):
 
 
 def _is_overdue(task) -> bool:
-    """Return True if a task has a deadline in the past and is still pending."""
-    if not task.due_date or task.status.lower() in ("completed", "done"):
+    """Return True if a task has a deadline today or in the past and is still pending."""
+    if not task.due_date or task.status.lower() in ("completed", "done", "update"):
         return False
     dl = _parse_date(task.due_date)
     if dl is None:
         return False
-    return dl.date() < datetime.now().date()
+    return dl.date() <= datetime.now().date()
 
 
 class DashboardView(ctk.CTkFrame):
@@ -140,7 +140,7 @@ class DashboardView(ctk.CTkFrame):
 
         # Status breakdowns
         task_status = Counter(t.status.strip().capitalize() for t in tasks)
-        completed_tasks = task_status.get("Completed", 0) + task_status.get("Done", 0)
+        completed_tasks = task_status.get("Completed", 0) + task_status.get("Done", 0) + task_status.get("Update", 0)
         pending_tasks = task_status.get("Pending", 0)
         delayed_tasks = task_status.get("Delayed", 0)
         overdue_tasks = sum(1 for t in tasks if _is_overdue(t))
@@ -148,7 +148,7 @@ class DashboardView(ctk.CTkFrame):
         completion_rate = round(completed_tasks / total_tasks * 100) if total_tasks else 0
 
         goal_status = Counter(g.status.strip().capitalize() for g in goals)
-        completed_goals = goal_status.get("Completed", 0) + goal_status.get("Done", 0)
+        completed_goals = goal_status.get("Completed", 0) + goal_status.get("Done", 0) + goal_status.get("Update", 0)
         goal_completion_rate = round(completed_goals / total_goals * 100) if total_goals else 0
 
         # ── KPI Row 1 ──
@@ -161,14 +161,14 @@ class DashboardView(ctk.CTkFrame):
         except ImportError:
             pending_requests = 0
 
-        critical_tasks = sum(1 for t in tasks if t.priority.strip().lower() in ("high", "critical") and t.status.strip().lower() not in ("completed", "done"))
+        critical_tasks = sum(1 for t in tasks if t.priority.strip().lower() in ("high", "critical") and t.status.strip().lower() not in ("completed", "done", "update"))
         at_risk_tasks = delayed_tasks
         team_load = round(total_tasks / total_people, 1) if total_people else 0
 
         # Build Risk Summary
         dept_risks = defaultdict(int)
         for t in all_tasks:
-            if t.status.lower() == "delayed" or _is_overdue(t) or (t.priority.strip().lower() in ("high", "critical") and t.status.lower() not in ("completed", "done")):
+            if t.status.lower() == "delayed" or _is_overdue(t) or (t.priority.strip().lower() in ("high", "critical") and t.status.lower() not in ("completed", "done", "update")):
                 dept_risks[t.department] += 1
         
         at_risk_depts = [f"{d} ({c})" for d, c in dept_risks.items() if c > 0]
@@ -223,7 +223,7 @@ class DashboardView(ctk.CTkFrame):
         lbl_att = ctk.CTkLabel(hdr, text="⚠️ ATTENTION REQUIRED", font=FONT_TITLE, text_color="#eab308")
         lbl_att.pack(side="left", padx=(0, 10))
         
-        attention_tasks = [t for t in tasks if t.status.lower() == "delayed" or _is_overdue(t) or (t.priority.strip().lower() in ("high", "critical") and t.status.lower() not in ("completed", "done"))]
+        attention_tasks = [t for t in tasks if t.status.lower() == "delayed" or _is_overdue(t) or (t.priority.strip().lower() in ("high", "critical") and t.status.lower() not in ("completed", "done", "update"))]
         
         num_items = len(attention_tasks)
         num_crit = sum(1 for t in attention_tasks if t.priority.strip().lower() in ("high", "critical"))
@@ -299,7 +299,7 @@ class DashboardView(ctk.CTkFrame):
                     status_data[st].append(count)
             # Also count "Done" as "Completed"
             for i, p in enumerate(person_names):
-                status_data["Completed"][i] += sum(1 for t in tasks if t.person == p and t.status.strip().lower() == "done")
+                status_data["Completed"][i] += sum(1 for t in tasks if t.person == p and t.status.strip().lower() in ("done", "update"))
             chart_status.stacked_bar_chart(person_names, status_data,
                                            colors=[STATUS_COLORS["Pending"], STATUS_COLORS["Completed"], STATUS_COLORS["Delayed"]])
 
@@ -309,7 +309,7 @@ class DashboardView(ctk.CTkFrame):
         if task_status:
             merged = defaultdict(int)
             for st, cnt in task_status.items():
-                if st.lower() in ("done", "completed"):
+                if st.lower() in ("done", "completed", "update"):
                     merged["Completed"] += cnt
                 else:
                     merged[st] += cnt
@@ -359,7 +359,7 @@ class DashboardView(ctk.CTkFrame):
                     count = sum(1 for g in goals if g.person == p and g.status.strip().capitalize() == st)
                     goal_data[st].append(count)
             for i, p in enumerate(goal_persons):
-                goal_data["Completed"][i] += sum(1 for g in goals if g.person == p and g.status.strip().lower() == "done")
+                goal_data["Completed"][i] += sum(1 for g in goals if g.person == p and g.status.strip().lower() in ("done", "update"))
             chart_goal_status.stacked_bar_chart(goal_persons, goal_data,
                                                  colors=[STATUS_COLORS["Pending"], STATUS_COLORS["Completed"], STATUS_COLORS["Delayed"]])
 
