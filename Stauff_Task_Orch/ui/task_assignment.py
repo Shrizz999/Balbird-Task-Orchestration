@@ -570,3 +570,24 @@ class TaskAssignmentView(ctk.CTkFrame):
         # The sub-frames manage their own data via n8n/sheets clients,
         # so nothing special is needed here.
         pass
+
+    def update_dropdowns(self):
+        import config
+        # Update Daily Goals dropdown
+        if "Daily Goals" in self.sub_frames:
+            daily = self.sub_frames["Daily Goals"]
+            if hasattr(daily, "combo_employee"):
+                daily.combo_employee.configure(values=config.ALL_EMPLOYEES)
+                
+        # Update Department Goals dropdown
+        if "Department Goals" in self.sub_frames:
+            dept = self.sub_frames["Department Goals"]
+            if hasattr(dept, "combo_dept"):
+                dept.combo_dept.configure(values=config.ALL_DEPARTMENTS)
+                
+        # Update Monthly Task Updater dropdown
+        if "Monthly Task Updater" in self.sub_frames:
+            monthly = self.sub_frames["Monthly Task Updater"]
+            if hasattr(monthly, "combo_dept"):
+                monthly.combo_dept.configure(values=config.ALL_DEPARTMENTS)
+

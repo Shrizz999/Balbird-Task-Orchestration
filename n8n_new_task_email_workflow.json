@@ -1,0 +1,127 @@
+{
+  "name": "Send Email on New Task Assigned",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-task-assigned",
+        "options": {}
+      },
+      "id": "e8a9b6c1-1234-4567-890a-bcdef1234567",
+      "name": "Supabase Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        180,
+        240
+      ],
+      "webhookId": "new-task-assigned-1234"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "table": "employees",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "name",
+              "condition": "eq",
+              "keyValue": "={{ $json.body.record.assigned_to }}"
+            }
+          ]
+        }
+      },
+      "id": "f9b0c7d2-2345-5678-901b-cdef23456789",
+      "name": "Get Employee Data",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        400,
+        240
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const task = $('Supabase Webhook').item.json.body.record;\nconst employee = $input.item.json;\n\n// Format checklist if it exists\nlet checklistHtml = '';\nif (task.checklist && Array.isArray(task.checklist) && task.checklist.length > 0) {\n  checklistHtml = '<h3>Checklist:</h3><ul>';\n  task.checklist.forEach(item => {\n    let text = typeof item === 'string' ? item : (item.text || item.step || JSON.stringify(item));\n    checklistHtml += `<li>${text}</li>`;\n  });\n  checklistHtml += '</ul>';\n}\n\n// Format Deadline\nlet deadline = task.deadline || 'No specific deadline';\n\nconst emailHtml = `\n  <div style=\"font-family: Arial, sans-serif; padding: 20px; color: #333;\">\n    <h2>Hello ${employee.name},</h2>\n    <p>A new task has been assigned to you.</p>\n    \n    <div style=\"background-color: #f4f6f9; padding: 15px; border-left: 4px solid #0ea5e9; margin: 20px 0;\">\n      <h3 style=\"margin-top: 0;\">Task Details</h3>\n      <p><strong>Description:</strong> ${task.description}</p>\n      <p><strong>Deadline:</strong> ${deadline}</p>\n      <p><strong>Source:</strong> ${task.source || 'Direct Assignment'}</p>\n      <p><strong>Priority:</strong> ${task.priority || 'Normal'}</p>\n    </div>\n\n    ${checklistHtml}\n\n    <p>Please check your Task Updater app for more details.</p>\n    <br/>\n    <p>Best regards,<br/>Stauff Orchestration System</p>\n  </div>\n`;\n\nreturn {\n  json: {\n    recipientEmail: employee.email,\n    subject: `New Task Assigned: ${task.description.substring(0, 50)}...`,\n    emailBody: emailHtml\n  }\n};"
+      },
+      "id": "a1b2c3d4-3456-6789-012c-def34567890a",
+      "name": "Format Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "your-email@example.com",
+        "toEmail": "={{ $json.recipientEmail }}",
+        "subject": "={{ $json.subject }}",
+        "html": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "b2c3d4e5-4567-7890-123d-ef4567890ab",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        840,
+        240
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Supabase Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Employee Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Employee Data": {
+      "main": [
+        [
+          {
+            "node": "Format Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

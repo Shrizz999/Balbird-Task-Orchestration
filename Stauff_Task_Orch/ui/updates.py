@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from .components import FilterBar, DataTable, BG_COLOR, TEXT_COLOR, FONT_H1
+from .components import FilterBar, ModernCardTable, BG_COLOR, TEXT_COLOR, FONT_H1
 from data.repository import DataRepository
 
 class UpdatesView(ctk.CTkFrame):
@@ -44,14 +44,14 @@ class UpdatesView(ctk.CTkFrame):
         
     def _build_table(self):
         columns = [
-            {"id": "date", "title": "Date", "width": 100},
-            {"id": "person", "title": "Person", "width": 120},
-            {"id": "department", "title": "Department", "width": 150},
-            {"id": "report", "title": "Report", "width": 500},
-            {"id": "rating", "title": "Rating (AI)", "width": 100}
+            {"id": "date", "title": "DATE", "weight": 1.0},
+            {"id": "person", "title": "PERSON", "weight": 1.2},
+            {"id": "department", "title": "DEPARTMENT", "weight": 1.5},
+            {"id": "report", "title": "REPORT", "weight": 5.0},
+            {"id": "rating", "title": "RATING", "weight": 1.0, "type": "pill"}
         ]
         
-        self.data_table = DataTable(self, columns=columns, data=self._get_table_data(self.all_updates), double_click_callback=self._show_details)
+        self.data_table = ModernCardTable(self, columns=columns, data=self._get_table_data(self.all_updates), double_click_callback=self._show_details)
         self.data_table.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         
     def _get_table_data(self, updates):
@@ -111,5 +111,7 @@ class UpdatesView(ctk.CTkFrame):
             self.filter_bar.destroy()
             self._build_filters()
             if hasattr(self, "data_table"):
-                self.filter_bar.pack(before=self.data_table, fill="x", padx=20, pady=(0, 20))
+                self.data_table.pack_forget()
+                self.filter_bar.pack(fill="x", padx=20, pady=(0, 20))
+                self.data_table.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         self.data_table.update_data(self._get_table_data(self.all_updates))

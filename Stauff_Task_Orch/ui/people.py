@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from collections import Counter, defaultdict
-from .components import (KPICard, ChartCard, DataTable, BG_COLOR, TEXT_COLOR,
+from .components import (KPICard, ChartCard, ModernCardTable, BG_COLOR, TEXT_COLOR,
                          FONT_H1, FONT_TITLE, CARD_BG, BORDER_COLOR, TEXT_MUTED,
                          CHART_COLORS)
 from data.repository import DataRepository
@@ -92,11 +92,11 @@ class PeopleView(ctk.CTkFrame):
         lbl_tasks.pack(anchor="w", padx=10, pady=(5, 5))
 
         task_cols = [
-            {"id": "date", "title": "Date", "width": 90},
-            {"id": "task", "title": "Task", "width": 450},
-            {"id": "status", "title": "Status", "width": 80}
+            {"id": "date", "title": "DATE", "weight": 1.0},
+            {"id": "task", "title": "TASK", "weight": 5.0},
+            {"id": "status", "title": "STATUS", "weight": 1.0, "type": "pill"}
         ]
-        self.tasks_table = DataTable(self.main_area, columns=task_cols, height=180, double_click_callback=self._show_task_details)
+        self.tasks_table = ModernCardTable(self.main_area, columns=task_cols, height=180, double_click_callback=self._show_task_details)
         self.tasks_table.pack(fill="x", padx=10, pady=(0, 15))
 
         # Updates table
@@ -104,10 +104,10 @@ class PeopleView(ctk.CTkFrame):
         lbl_updates.pack(anchor="w", padx=10, pady=(5, 5))
 
         update_cols = [
-            {"id": "date", "title": "Date", "width": 90},
-            {"id": "report", "title": "Report", "width": 550}
+            {"id": "date", "title": "DATE", "weight": 1.0},
+            {"id": "report", "title": "REPORT", "weight": 6.0}
         ]
-        self.updates_table = DataTable(self.main_area, columns=update_cols, height=180, double_click_callback=self._show_update_details)
+        self.updates_table = ModernCardTable(self.main_area, columns=update_cols, height=180, double_click_callback=self._show_update_details)
         self.updates_table.pack(fill="x", padx=10, pady=(0, 15))
 
 
@@ -117,12 +117,12 @@ class PeopleView(ctk.CTkFrame):
         lbl_sos.pack(anchor="w", padx=10, pady=(5, 5))
 
         so_cols = [
-            {"id": "po_number", "title": "SO Number", "width": 150},
-            {"id": "time", "title": "Time", "width": 150},
-            {"id": "company_name", "title": "Company Name", "width": 200},
-            {"id": "filename", "title": "Document", "width": 200}
+            {"id": "po_number", "title": "SO NUMBER", "weight": 1.5},
+            {"id": "time", "title": "TIME", "weight": 1.0},
+            {"id": "company_name", "title": "COMPANY NAME", "weight": 2.0},
+            {"id": "filename", "title": "DOCUMENT", "weight": 2.0}
         ]
-        self.so_table = DataTable(self.main_area, columns=so_cols, height=180, double_click_callback=self._open_so_file)
+        self.so_table = ModernCardTable(self.main_area, columns=so_cols, height=180, double_click_callback=self._open_so_file)
         self.so_table.pack(fill="x", padx=10, pady=(0, 20))
 
     def _open_so_file(self, row_data):

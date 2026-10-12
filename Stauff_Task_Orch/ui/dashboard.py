@@ -207,7 +207,7 @@ class DashboardView(ctk.CTkFrame):
             elif b_count > 1:
                 desc = f"{b_count} bottlenecks"
             else:
-                desc = "Smooth sailing"
+                desc = "On Track"
             tracker_data.append({"name": dept, "status": status, "desc": desc})
             
         timeline = TimelineTracker(self.charts_row_bottleneck, tracker_data)

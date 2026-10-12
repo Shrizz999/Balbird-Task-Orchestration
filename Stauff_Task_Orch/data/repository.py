@@ -31,13 +31,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Base department mapping from app.py
-TEAM_STRUCTURE = {
-    "SO department": ["Swapnali", "Ganesh"],
-    "PO department": [],
-    "Sales Department": [],
-    "Logistics Department": []
-}
+from config import DEPARTMENTS as TEAM_STRUCTURE
 
 # Published Google Sheet GIDs (from n8n workflow)
 SHEET_GIDS = {
@@ -504,6 +498,7 @@ class SupabaseRepository(DataRepository):
         try:
             new_tasks = []
             new_goals = []
+            new_updates = []
             
             raw_tasks = self._fetch_table('tasks')
             for row in raw_tasks:
@@ -536,8 +531,22 @@ class SupabaseRepository(DataRepository):
                     checklist=row.get('checklist', [])
                 ))
 
+            raw_updates = self._fetch_table('boss_reviews')
+            for row in raw_updates:
+                person = normalize_name(row.get('employee_name', ''))
+                dept = get_department(person)
+                new_updates.append(Update(
+                    id=row.get('review_id', ''),
+                    date=row.get('review_date', ''),
+                    person=person,
+                    department=dept,
+                    report=row.get('performance_summary', ''),
+                    rating=str(row.get('rating', ''))
+                ))
+
             self.tasks = apply_task_status_rules(merge_repo_task_overrides(new_tasks))
             self.goals = new_goals
+            self.updates = new_updates
             self._rebuild_people()
 
         except Exception as e:

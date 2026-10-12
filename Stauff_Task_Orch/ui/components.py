@@ -429,80 +429,36 @@ class TimelineTracker(ctk.CTkFrame):
         lbl = ctk.CTkLabel(self, text="Department Bottlenecks Tracker", font=FONT_TITLE, text_color=TEXT_COLOR)
         lbl.pack(anchor="w", padx=20, pady=(16, 4))
         
-        self.canvas_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.canvas_frame.pack(fill="both", expand=True, padx=20, pady=(8, 20))
+        self.grid_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.grid_container.pack(fill="both", expand=True, padx=20, pady=(8, 20))
         
-        self.canvas = tk.Canvas(self.canvas_frame, bg=CARD_BG, highlightthickness=0, height=140)
-        self.canvas.pack(fill="both", expand=True)
-        
-        # Load custom icons
-        try:
-            assets_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets')
-            
-            x_img = Image.open(os.path.join(assets_dir, 'x_icon.png')).resize((40, 40), Image.LANCZOS)
-            tick_img = Image.open(os.path.join(assets_dir, 'tick_icon.png')).resize((40, 40), Image.LANCZOS)
-            
-            self.x_icon = ImageTk.PhotoImage(x_img)
-            self.tick_icon = ImageTk.PhotoImage(tick_img)
-        except Exception as e:
-            print(f"Error loading custom icons: {e}")
-            self.x_icon = None
-            self.tick_icon = None
-
-        self.canvas.bind("<Configure>", self._draw_timeline)
-        
-    def _draw_timeline(self, event=None):
-        self.canvas.delete("all")
-        width = self.canvas.winfo_width()
-        height = self.canvas.winfo_height()
-        if width < 50 or height < 50:
-            return
-            
-        n = len(self.departments_status)
-        if n == 0:
-            self.canvas.create_text(width/2, height/2, text="No Departments", fill=TEXT_MUTED, font=FONT_MAIN)
-            return
-            
-        pad_x = 90
-        usable_width = width - 2 * pad_x
-        step = usable_width / (n - 1) if n > 1 else 0
-        y = height / 2 - 18
-        
-        # Horizontal track line behind nodes
-        if n > 1:
-            self.canvas.create_line(pad_x, y, pad_x + usable_width, y, fill="#e2e8f0", width=6, capstyle="round")
+        cols = 5
+        for i in range(cols):
+            self.grid_container.grid_columnconfigure(i, weight=1)
             
         for i, dept in enumerate(self.departments_status):
-            x = pad_x + i * step
+            row = i // cols
+            col = i % cols
+            
             is_bottleneck = dept.get("status", "green") == "red"
-            color = "#ef4444" if is_bottleneck else "#10b981"
+            border_color = "#fecaca" if is_bottleneck else "#bbf7d0"
+            bg_color = "#fef2f2" if is_bottleneck else "#f0fdf4"
+            text_col = "#dc2626" if is_bottleneck else "#16a34a"
             
-            # Outer halo / badge circle
-            r = 20
+            card = ctk.CTkFrame(self.grid_container, fg_color=bg_color, corner_radius=8, border_width=1, border_color=border_color)
+            card.grid(row=row, column=col, padx=8, pady=8, sticky="nsew")
             
-            if is_bottleneck and getattr(self, 'x_icon', None):
-                self.canvas.create_oval(x - r, y - r, x + r, y + r, fill="white", outline="")
-                self.canvas.create_image(x, y, image=self.x_icon)
-            elif not is_bottleneck and getattr(self, 'tick_icon', None):
-                self.canvas.create_oval(x - r, y - r, x + r, y + r, fill="white", outline="")
-                self.canvas.create_image(x, y, image=self.tick_icon)
-            else:
-                self.canvas.create_oval(x - r, y - r, x + r, y + r, fill=color, outline="")
-                # White icon inside circle
-                if is_bottleneck:
-                    # X icon
-                    self.canvas.create_line(x - 7, y - 7, x + 7, y + 7, fill="white", width=3, capstyle="round")
-                    self.canvas.create_line(x - 7, y + 7, x + 7, y - 7, fill="white", width=3, capstyle="round")
-                else:
-                    # Checkmark icon
-                    self.canvas.create_line(x - 6, y, x - 1, y + 6, fill="white", width=3, capstyle="round")
-                    self.canvas.create_line(x - 1, y + 6, x + 8, y - 5, fill="white", width=3, capstyle="round")
-                
-            # Department name
-            self.canvas.create_text(x, y + 34, text=dept.get("name", ""), fill=TEXT_COLOR, font=("Inter", 13, "bold"))
+            icon = "⚠️" if is_bottleneck else "✓"
             
-            # Subtitle / description
+            header_frame = ctk.CTkFrame(card, fg_color="transparent")
+            header_frame.pack(fill="x", padx=10, pady=(10, 2))
+            
+            lbl_icon = ctk.CTkLabel(header_frame, text=icon, font=("Inter", 14), text_color=text_col)
+            lbl_icon.pack(side="left")
+            
+            lbl_name = ctk.CTkLabel(header_frame, text=dept.get("name", ""), font=("Inter", 12, "bold"), text_color=TEXT_COLOR)
+            lbl_name.pack(side="left", padx=(5, 0))
+            
             desc = dept.get("desc", "")
-            if desc:
-                desc_color = "#dc2626" if is_bottleneck else "#16a34a"
-                self.canvas.create_text(x, y + 54, text=desc, fill=desc_color, font=("Inter", 11))
+            lbl_desc = ctk.CTkLabel(card, text=desc, font=("Inter", 11), text_color=text_col)
+            lbl_desc.pack(anchor="w", padx=10, pady=(0, 10))

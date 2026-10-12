@@ -38,12 +38,45 @@ CSV_FILES = {
 }
 
 # ── Business Logic ──
+import requests
+
 DEPARTMENTS = {
-    "SO department": ["Swapnali", "Ganesh"],
+    "SO department": [],
     "PO department": [],
     "Sales Department": [],
-    "Logistics Department": []
+    "Logistics Department": [],
+    "Purchase": [],
+    "Sales Operation": [],
+    "Application": [],
+    "Production": [],
+    "IT": [],
+    "Management": [],
+    "HR": [],
+    "PPC": [],
+    "Accounts": [],
+    "Supply chain": []
 }
+
+try:
+    _url = f"{SUPABASE_URL}/rest/v1/employees?select=name,department"
+    _headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json"
+    }
+    _resp = requests.get(_url, headers=_headers, timeout=5)
+    if _resp.status_code == 200:
+        for _row in _resp.json():
+            _dept = _row.get("department")
+            _name = _row.get("name")
+            if _dept and _name:
+                if _dept not in DEPARTMENTS:
+                    DEPARTMENTS[_dept] = []
+                if _name not in DEPARTMENTS[_dept]:
+                    DEPARTMENTS[_dept].append(_name)
+except Exception:
+    pass
+
 ALL_EMPLOYEES = [emp for emps in DEPARTMENTS.values() for emp in emps]
 ALL_DEPARTMENTS = list(DEPARTMENTS.keys())
 

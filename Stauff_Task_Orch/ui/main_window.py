@@ -8,6 +8,7 @@ from .people import PeopleView
 from .analytics import AnalyticsView
 from .task_assignment import TaskAssignmentView
 from .extension_requests import ExtensionRequestsView
+from .add_employee import AddEmployeeView
 from .components import BG_COLOR, CARD_BG, BORDER_COLOR, TEXT_COLOR, TEXT_MUTED, ACCENT_COLOR
 
 REFRESH_INTERVAL_MS = 30_000  # Auto-refresh every 30 seconds
@@ -79,7 +80,8 @@ class MainWindow(ctk.CTk):
             ]),
             ("People", [
                 ("Team Profiles", PeopleView),
-                ("Analytics", AnalyticsView)
+                ("Analytics", AnalyticsView),
+                ("Add Employee", AddEmployeeView)
             ]),
             ("Delegation", [
                 ("Task Assignment", TaskAssignmentView)
@@ -172,3 +174,13 @@ class MainWindow(ctk.CTk):
                 self.repository.refresh_async()
             self.after(REFRESH_INTERVAL_MS, _tick)
         self.after(REFRESH_INTERVAL_MS, _tick)
+
+    def update_dropdowns(self):
+        import config
+        dept_options = ["All Departments"] + list(config.DEPARTMENTS.keys())
+        self.combo_dept.configure(values=dept_options)
+        
+        if "Task Assignment" in self.views:
+            if hasattr(self.views["Task Assignment"], "update_dropdowns"):
+                self.views["Task Assignment"].update_dropdowns()
+
