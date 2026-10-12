@@ -1,3 +1,6 @@
+import os
+import sys
+from PIL import Image
 import customtkinter as ctk
 from data.repository import DataRepository, GoogleSheetRepository, SupabaseRepository, TEAM_STRUCTURE
 from .dashboard import DashboardView
@@ -13,6 +16,28 @@ from .components import BG_COLOR, CARD_BG, BORDER_COLOR, TEXT_COLOR, TEXT_MUTED,
 
 REFRESH_INTERVAL_MS = 30_000  # Auto-refresh every 30 seconds
 
+def _resolve_resource_path(filename):
+    if hasattr(sys, '_MEIPASS'):
+        p = os.path.join(sys._MEIPASS, filename)
+        if os.path.exists(p):
+            return p
+    if getattr(sys, 'frozen', False):
+        p = os.path.join(os.path.dirname(sys.executable), filename)
+        if os.path.exists(p):
+            return p
+    candidates = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), filename),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
+        os.path.join(os.getcwd(), filename),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return filename
+
+_ICO_PATH = _resolve_resource_path("admin.ico")
+_SIDEBAR_ICO_PATH = _resolve_resource_path("user.ico")
+
 
 class MainWindow(ctk.CTk):
     def __init__(self, repository: DataRepository):
@@ -20,7 +45,13 @@ class MainWindow(ctk.CTk):
 
         self.repository = repository
 
-        self.title("Task Orchestration Dashboard")
+        self.title("Balbird TO")
+        try:
+            if os.path.exists(_ICO_PATH):
+                self.iconbitmap(_ICO_PATH)
+        except Exception:
+            pass
+
         self.geometry("1280x850")
         self.configure(fg_color=BG_COLOR)
         self.after(0, lambda: self.state("zoomed"))
@@ -39,16 +70,38 @@ class MainWindow(ctk.CTk):
 
     def _build_sidebar(self):
         self.sidebar = ctk.CTkFrame(self, fg_color=CARD_BG, border_width=1,
-                                    border_color=BORDER_COLOR, corner_radius=0, width=220)
+                                    border_color=BORDER_COLOR, corner_radius=0, width=230)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_rowconfigure(20, weight=1)
 
-        lbl_logo = ctk.CTkLabel(self.sidebar, text="STAUFF ORCH",
-                                font=("Inter", 18, "bold"), text_color=TEXT_COLOR)
-        lbl_logo.grid(row=0, column=0, padx=20, pady=(25, 5), sticky="w")
+        # ── Top Left Branding Header: Big Icon + 'Balbird TO' + Subtitle 'Admin Dashboard' ──
+        brand_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        brand_frame.grid(row=0, column=0, padx=16, pady=(20, 6), sticky="w")
+
+        self._sidebar_icon_img = None
+        sidebar_ico = _SIDEBAR_ICO_PATH if os.path.exists(_SIDEBAR_ICO_PATH) else _ICO_PATH
+        if os.path.exists(sidebar_ico):
+            try:
+                pil_icon = Image.open(sidebar_ico)
+                self._sidebar_icon_img = ctk.CTkImage(light_image=pil_icon, dark_image=pil_icon, size=(42, 42))
+                lbl_icon = ctk.CTkLabel(brand_frame, text="", image=self._sidebar_icon_img)
+                lbl_icon.pack(side="left", padx=(0, 10))
+            except Exception:
+                pass
+
+        brand_text_frame = ctk.CTkFrame(brand_frame, fg_color="transparent")
+        brand_text_frame.pack(side="left", fill="both", expand=True)
+
+        lbl_logo = ctk.CTkLabel(brand_text_frame, text="Balbird TO",
+                                font=("Inter", 17, "bold"), text_color=TEXT_COLOR)
+        lbl_logo.pack(anchor="w")
+
+        lbl_sub = ctk.CTkLabel(brand_text_frame, text="Admin Dashboard",
+                               font=("Inter", 10), text_color=TEXT_MUTED)
+        lbl_sub.pack(anchor="w", pady=(1, 0))
 
         self.lbl_live = ctk.CTkLabel(self.sidebar, text="", font=("Inter", 9), text_color=ACCENT_COLOR)
-        self.lbl_live.grid(row=1, column=0, padx=20, pady=(0, 15), sticky="w")
+        self.lbl_live.grid(row=1, column=0, padx=16, pady=(0, 12), sticky="w")
 
         if isinstance(self.repository, GoogleSheetRepository):
             self.lbl_live.configure(text="● LIVE — Google Sheets")
@@ -169,10 +222,14 @@ class MainWindow(ctk.CTk):
 
     def _schedule_auto_refresh(self):
         def _tick():
-            if isinstance(self.repository, (GoogleSheetRepository, SupabaseRepository)):
-                self.repository.on_refresh_done = self._on_refresh_complete
-                self.repository.refresh_async()
-            self.after(REFRESH_INTERVAL_MS, _tick)
+            try:
+                if isinstance(self.repository, (GoogleSheetRepository, SupabaseRepository)):
+                    self.repository.on_refresh_done = self._on_refresh_complete
+                    self.repository.refresh_async()
+            except Exception as e:
+                pass
+            finally:
+                self.after(REFRESH_INTERVAL_MS, _tick)
         self.after(REFRESH_INTERVAL_MS, _tick)
 
     def update_dropdowns(self):

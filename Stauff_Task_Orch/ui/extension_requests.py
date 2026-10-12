@@ -82,7 +82,12 @@ class ExtensionRequestsView(ctk.CTkFrame):
         self.scroll.grid_columnconfigure(0, weight=1)
 
         self._all_requests = []
+        self._card_frames = {}
+        self._card_status = {}
+        self._lbl_empty = None
+        self._initialized = False
         self._render_cards()
+        self._initialized = True
 
         # Auto-refresh
         self._schedule_auto_poll()
@@ -103,10 +108,15 @@ class ExtensionRequestsView(ctk.CTkFrame):
 
     # ── UI ───────────────────────────────────────────────────────────
 
-    def _render_cards(self):
-        for w in self.scroll.winfo_children():
-            w.destroy()
+    def _highlight_card(self, card: ctk.CTkFrame):
+        steps = ["#dbeafe", "#e0e7ff", "#eff6ff", "#f8fafc", CARD_BG]
+        def _step(idx=0):
+            if idx < len(steps) and card.winfo_exists():
+                card.configure(fg_color=steps[idx])
+                self.after(100, lambda: _step(idx + 1))
+        _step()
 
+    def _render_cards(self):
         self._all_requests = get_all_requests()
 
         if self.show_all_var.get():
@@ -114,23 +124,68 @@ class ExtensionRequestsView(ctk.CTkFrame):
         else:
             display = [r for r in self._all_requests if r["status"] == "Pending"]
 
+        display = list(reversed(display))
         pending_count = sum(1 for r in self._all_requests if r["status"] == "Pending")
         self.lbl_count.configure(text=f"{pending_count} pending request(s)")
 
-        if not display:
-            ctk.CTkLabel(self.scroll, text="No extension requests to show.",
-                         font=FONT_MAIN, text_color=TEXT_MUTED).pack(pady=40)
+        display_sig = [(r["id"], r["status"]) for r in display]
+        current_sig = [(rid, self._card_status.get(rid)) for rid in self._card_frames.keys()]
+
+        # If display set is identical in IDs and status, don't disturb anything
+        if [r["id"] for r in display] == list(self._card_frames.keys()) and display_sig == current_sig:
             return
 
-        for idx, req in enumerate(reversed(display)):
-            self._build_request_card(idx, req)
+        scroll_y = 0.0
+        try:
+            scroll_y = self.scroll._parent_canvas.yview()[0]
+        except Exception:
+            pass
 
-    def _build_request_card(self, idx: int, req: dict):
+        # Destroy cards that are no longer in display or changed status
+        display_ids = {r["id"] for r in display}
+        for old_id in list(self._card_frames.keys()):
+            old_card = self._card_frames[old_id]
+            req_in_display = next((r for r in display if r["id"] == old_id), None)
+            if old_id not in display_ids or (req_in_display and req_in_display["status"] != self._card_status.get(old_id)):
+                old_card.destroy()
+                del self._card_frames[old_id]
+                self._card_status.pop(old_id, None)
+
+        if not display:
+            if not self._lbl_empty or not self._lbl_empty.winfo_exists():
+                self._lbl_empty = ctk.CTkLabel(self.scroll, text="No extension requests to show.",
+                                               font=FONT_MAIN, text_color=TEXT_MUTED)
+                self._lbl_empty.pack(pady=40)
+        else:
+            if self._lbl_empty and self._lbl_empty.winfo_exists():
+                self._lbl_empty.destroy()
+                self._lbl_empty = None
+
+            for idx, req in enumerate(display):
+                req_id = req["id"]
+                if req_id in self._card_frames:
+                    card = self._card_frames[req_id]
+                else:
+                    card = self._build_request_card(req)
+                    self._card_frames[req_id] = card
+                    self._card_status[req_id] = req["status"]
+                    if getattr(self, "_initialized", False):
+                        self._highlight_card(card)
+                card.grid(row=idx, column=0, sticky="ew", pady=6, padx=4)
+
+        def _restore():
+            try:
+                self.scroll._parent_canvas.yview_moveto(scroll_y)
+            except Exception:
+                pass
+        self.after_idle(_restore)
+        self.after(50, _restore)
+
+    def _build_request_card(self, req: dict) -> ctk.CTkFrame:
         is_pending = req["status"] == "Pending"
 
         card = ctk.CTkFrame(self.scroll, fg_color=CARD_BG, border_width=1,
                             border_color=BORDER_COLOR, corner_radius=8)
-        card.grid(row=idx, column=0, sticky="ew", pady=6, padx=4)
         card.grid_columnconfigure(1, weight=1)
 
         # ── Left: status badge ──
@@ -216,6 +271,7 @@ class ExtensionRequestsView(ctk.CTkFrame):
                 info_parts.append(f"Note: {note}")
             ctk.CTkLabel(info_frame, text="  |  ".join(info_parts),
                          font=FONT_SMALL, text_color=TEXT_MUTED).pack(anchor="w")
+        return card
 
     def _build_action_row(self, card, req, row):
         """Build the approve/reject controls for a pending request."""

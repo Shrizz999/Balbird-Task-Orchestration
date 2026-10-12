@@ -94,7 +94,9 @@ class DashboardView(ctk.CTkFrame):
         self.charts_row5.pack(fill="x", padx=20, pady=(0, 20))
         self.charts_row5.grid_columnconfigure((0, 1), weight=1)
 
-        self.build_content()
+        self._last_data_sig = None
+        self._last_status_text_prefix = ""
+        self.build_content(force=True)
 
     def _navigate_to_filtered_tasks(self, filter_name):
         view = self.master.views.get("All Tasks")
@@ -102,14 +104,7 @@ class DashboardView(ctk.CTkFrame):
             view.apply_preset_filter(filter_name)
         self.master.show_view("All Tasks")
 
-    def build_content(self):
-        # Clear all frames
-        for frame in [getattr(self, "risk_summary_frame", None), self.kpi_frame, getattr(self, "charts_row_bottleneck", None),
-                      getattr(self, "attention_row", None), self.charts_row1,
-                      self.charts_row2, self.charts_row3, self.charts_row4, self.charts_row5]:
-            if frame:
-                self._clear_frame(frame)
-
+    def build_content(self, force: bool = False):
         all_tasks = self.repository.get_tasks()
         all_goals = self.repository.get_goals()
         all_updates = self.repository.get_updates()
@@ -118,6 +113,46 @@ class DashboardView(ctk.CTkFrame):
         selected_dept = getattr(self.master, "current_dept", "All Departments")
         if hasattr(selected_dept, "get"):
             selected_dept = selected_dept.get()
+
+        try:
+            from services.extension_store import get_all_pending_requests
+            pending_requests = len(get_all_pending_requests())
+        except Exception:
+            pending_requests = 0
+
+        task_sigs = tuple((t.id, getattr(t, 'status', ''), getattr(t, 'due_date', ''), getattr(t, 'priority', '')) for t in all_tasks)
+        goal_sigs = tuple((g.id, getattr(g, 'status', '')) for g in all_goals)
+        data_sig = (
+            selected_dept,
+            len(all_tasks),
+            task_sigs,
+            len(all_goals),
+            goal_sigs,
+            len(all_updates),
+            len(all_people),
+            pending_requests,
+        )
+
+        if not force and self._last_data_sig == data_sig:
+            if self._last_status_text_prefix:
+                self.lbl_status.configure(
+                    text=f"{self._last_status_text_prefix} · Last refreshed: {datetime.now().strftime('%H:%M:%S')}")
+            return
+
+        scroll_y = 0.0
+        try:
+            scroll_y = self.scroll._parent_canvas.yview()[0]
+        except Exception:
+            pass
+
+        self._last_data_sig = data_sig
+
+        # Clear all frames
+        for frame in [getattr(self, "risk_summary_frame", None), self.kpi_frame, getattr(self, "charts_row_bottleneck", None),
+                      getattr(self, "attention_row", None), self.charts_row1,
+                      self.charts_row2, self.charts_row3, self.charts_row4, self.charts_row5]:
+            if frame:
+                self._clear_frame(frame)
 
         if selected_dept != "All Departments":
             tasks = [t for t in all_tasks if getattr(t, 'department', '') == selected_dept]
@@ -416,13 +451,24 @@ class DashboardView(ctk.CTkFrame):
                                         colors=["#10b981", "#e2e8f0"])
 
         # Status bar text
+        self._last_status_text_prefix = (
+            f"📊 {total_tasks} tasks · {total_goals} goals · {total_updates} updates · "
+            f"{completed_tasks} completed · {overdue_tasks} overdue"
+        )
         self.lbl_status.configure(
-            text=f"📊 {total_tasks} tasks · {total_goals} goals · {total_updates} updates · "
-                 f"{completed_tasks} completed · {overdue_tasks} overdue · Last refreshed: {datetime.now().strftime('%H:%M:%S')}")
+            text=f"{self._last_status_text_prefix} · Last refreshed: {datetime.now().strftime('%H:%M:%S')}")
+
+        def _restore():
+            try:
+                self.scroll._parent_canvas.yview_moveto(scroll_y)
+            except Exception:
+                pass
+        self.after_idle(_restore)
+        self.after(60, _restore)
 
     def refresh_data(self):
         """Called after live data refresh."""
-        self.build_content()
+        self.build_content(force=False)
 
     @staticmethod
     def _clear_frame(frame):

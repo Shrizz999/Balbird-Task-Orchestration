@@ -17,12 +17,10 @@ class AnalyticsView(ctk.CTkFrame):
         self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scroll_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
 
-        self.build_content()
+        self._last_data_sig = None
+        self.build_content(force=True)
 
-    def build_content(self):
-        for w in self.scroll_frame.winfo_children():
-            w.destroy()
-
+    def build_content(self, force: bool = False):
         people = self.repository.get_people()
         tasks = self.repository.get_tasks()
         goals = self.repository.get_goals()
@@ -31,6 +29,30 @@ class AnalyticsView(ctk.CTkFrame):
         selected_dept = getattr(self.master, "current_dept", "All Departments")
         if hasattr(selected_dept, "get"):
             selected_dept = selected_dept.get()
+
+        data_sig = (
+            selected_dept,
+            len(people),
+            tuple((p.name, getattr(p, 'department', '')) for p in people),
+            len(tasks),
+            tuple((t.id, getattr(t, 'department', '')) for t in tasks),
+            len(goals),
+            len(updates)
+        )
+
+        if not force and self._last_data_sig == data_sig:
+            return
+
+        scroll_y = 0.0
+        try:
+            scroll_y = self.scroll_frame._parent_canvas.yview()[0]
+        except Exception:
+            pass
+
+        self._last_data_sig = data_sig
+
+        for w in self.scroll_frame.winfo_children():
+            w.destroy()
             
         if selected_dept != "All Departments":
             people = [p for p in people if getattr(p, 'department', '') == selected_dept]
@@ -132,5 +154,13 @@ class AnalyticsView(ctk.CTkFrame):
             lbl_members = ctk.CTkLabel(dept_frame, text=f"Members: {members_text}", font=("Inter", 11), text_color=TEXT_MUTED)
             lbl_members.pack(anchor="w", padx=20, pady=(0, 15))
 
+        def _restore():
+            try:
+                self.scroll_frame._parent_canvas.yview_moveto(scroll_y)
+            except Exception:
+                pass
+        self.after_idle(_restore)
+        self.after(50, _restore)
+
     def refresh_data(self):
-        self.build_content()
+        self.build_content(force=False)

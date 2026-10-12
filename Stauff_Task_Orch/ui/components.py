@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import List, Callable, Dict, Any, Optional
 import os
+from datetime import datetime
 from PIL import Image, ImageTk
 import matplotlib
 matplotlib.use("Agg")
@@ -262,109 +263,282 @@ class DataTable(ctk.CTkFrame):
         self.tree.heading(col_id, command=lambda: self._sort_column(col_id, not reverse))
 
 
-class ModernCardTable(ctk.CTkScrollableFrame):
+class ModernCardTable(ctk.CTkFrame):
     def __init__(self, master, columns: List[Dict[str, Any]], data: List[Dict[str, Any]] = None,
-                 double_click_callback: Callable = None, **kwargs):
+                 double_click_callback: Callable = None, height: int = None, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
         self.double_click_callback = double_click_callback
         self.columns = columns
         self.data = data or []
+        self.row_cards: Dict[str, ctk.CTkFrame] = {}
+        self._initialized = False
+        self._sort_col: Optional[str] = None
+        self._sort_reverse: bool = False
+        self._header_labels: Dict[str, tuple] = {}
         
+        # 1. Static Sticky Column Headers (never scroll away!)
         self._build_header()
-        self.rows_frame = ctk.CTkFrame(self, fg_color="transparent")
+
+        # 2. Scrollable Data Container (only data rows scroll)
+        scroll_kwargs = {"fg_color": "transparent"}
+        if height is not None:
+            scroll_kwargs["height"] = height
+        self.scroll_frame = ctk.CTkScrollableFrame(self, **scroll_kwargs)
+        self.scroll_frame.pack(fill="both", expand=True)
+
+        self.rows_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         self.rows_frame.pack(fill="both", expand=True)
         self._load_data(self.data)
+        self._initialized = True
+
+    @property
+    def _parent_canvas(self):
+        return self.scroll_frame._parent_canvas
 
     def _build_header(self):
-        header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(0, 10), padx=5)
+        self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.header_frame.pack(fill="x", pady=(0, 6), padx=(8, 19))
+
+        def on_mousewheel(event):
+            try:
+                self.scroll_frame._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except Exception:
+                pass
+        self.header_frame.bind("<MouseWheel>", on_mousewheel, add="+")
+
         for i, col in enumerate(self.columns):
             weight = col.get("weight", 1)
-            header_frame.grid_columnconfigure(i, weight=int(weight*10), uniform="col")
-            lbl = ctk.CTkLabel(header_frame, text=col["title"].upper(), font=FONT_BOLD, text_color=TEXT_MUTED, anchor="w")
+            self.header_frame.grid_columnconfigure(i, weight=int(weight*10), uniform="col")
+            col_id = col["id"]
+            lbl = ctk.CTkLabel(self.header_frame, text=col["title"].upper(), font=FONT_BOLD, text_color=TEXT_MUTED, anchor="w", cursor="hand2")
             lbl.grid(row=0, column=i, sticky="w", padx=10)
+            lbl.bind("<MouseWheel>", on_mousewheel, add="+")
+            lbl.bind("<Button-1>", lambda event, cid=col_id: self._on_sort_column(cid))
+            self._header_labels[col_id] = (lbl, col["title"].upper())
 
-    def _load_data(self, data):
+    def _on_sort_column(self, col_id: str):
+        """Click once -> ascending (▲). Click same column again -> descending (▼) with reversed arrow."""
+        if self._sort_col == col_id:
+            self._sort_reverse = not self._sort_reverse
+        else:
+            self._sort_col = col_id
+            self._sort_reverse = False
+
+        # Update header labels with reversible arrows ▲ / ▼
+        for cid, (lbl, base_title) in self._header_labels.items():
+            if cid == self._sort_col:
+                arrow = "▼" if self._sort_reverse else "▲"
+                lbl.configure(text=f"{base_title} {arrow}", text_color=ACCENT_COLOR)
+            else:
+                lbl.configure(text=base_title, text_color=TEXT_MUTED)
+
+        # Smart sort supporting dates, numbers, and text; empty/null cells always placed at end
+        non_empty = [r for r in self.data if r.get(col_id) not in (None, "")]
+        empty = [r for r in self.data if r.get(col_id) in (None, "")]
+
+        def row_sort_key(r):
+            v = str(r.get(col_id, "")).strip()
+            for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d %b %Y"):
+                try:
+                    return (0, datetime.strptime(v, fmt).date().toordinal(), "")
+                except ValueError:
+                    pass
+            try:
+                return (1, float(v), "")
+            except ValueError:
+                return (2, 0, v.lower())
+
+        non_empty.sort(key=row_sort_key, reverse=self._sort_reverse)
+        self.data = non_empty + empty
+        self.update_data(self.data)
+
+    def _get_row_key(self, row_data: Dict[str, Any]) -> str:
+        if "id" in row_data and row_data["id"]:
+            return str(row_data["id"])
+        p = str(row_data.get("person", ""))
+        d = str(row_data.get("date", ""))
+        desc = str(row_data.get("task", "") or row_data.get("goal", "") or row_data.get("report", "") or row_data.get("po_number", ""))
+        return f"{p}_{d}_{desc}"
+
+    def _get_pill_colors(self, val: Any):
+        color = "#e2e8f0"
+        text_color = "#475569"
+        val_lower = str(val).lower()
+        if "completed" in val_lower or "done" in val_lower:
+            color = "#dcfce7"; text_color = "#166534"
+        elif "delayed" in val_lower or "overdue" in val_lower:
+            color = "#fee2e2"; text_color = "#991b1b"
+        elif "pending" in val_lower or "in progress" in val_lower or "active" in val_lower:
+            color = "#dbeafe"; text_color = "#1e40af"
+        elif "high" in val_lower or "urgent" in val_lower or "mrp" in val_lower:
+            color = "#fef08a"; text_color = "#854d0e"
+        elif "rfq" in val_lower:
+            color = "#f3e8ff"; text_color = "#7e22ce"
+        return color, text_color
+
+    def _create_card(self, row_data: Dict[str, Any]) -> ctk.CTkFrame:
+        card = ctk.CTkFrame(self.rows_frame, fg_color=CARD_BG, border_width=1, border_color=BORDER_COLOR, corner_radius=8)
+        card._row_data = row_data
+        card._cell_widgets = {}
+
+        def bind_card_events(widget):
+            def on_enter(e, c=card):
+                c.configure(fg_color="#f8fafc", border_color="#cbd5e1")
+            def on_leave(e, c=card):
+                c.configure(fg_color=CARD_BG, border_color=BORDER_COLOR)
+            widget.bind("<Enter>", on_enter, add="+")
+            widget.bind("<Leave>", on_leave, add="+")
+            if self.double_click_callback:
+                widget.bind("<Double-1>", lambda e, c=card: self.double_click_callback(c._row_data))
+                
+        bind_card_events(card)
+
+        for i, col in enumerate(self.columns):
+            weight = col.get("weight", 1)
+            card.grid_columnconfigure(i, weight=int(weight*10), uniform="col")
+            
+            val = row_data.get(col["id"], "")
+            
+            cell_frame = ctk.CTkFrame(card, fg_color="transparent")
+            cell_frame.grid(row=0, column=i, sticky="w", padx=10, pady=12)
+            bind_card_events(cell_frame)
+
+            col_type = col.get("type")
+            if col_type == "pill":
+                color, text_color = self._get_pill_colors(val)
+                pill = ctk.CTkLabel(cell_frame, text=str(val).upper()[:15], font=("Inter", 10, "bold"),
+                                    fg_color=color, text_color=text_color, corner_radius=4, padx=8, pady=2)
+                pill.pack(anchor="w")
+                bind_card_events(pill)
+                card._cell_widgets[col["id"]] = pill
+            
+            elif col_type == "progress":
+                prog_val = float(val) if val else 0.0
+                prog_frame = ctk.CTkFrame(cell_frame, fg_color="transparent")
+                prog_frame.pack(anchor="w", fill="x", expand=True)
+                bind_card_events(prog_frame)
+                
+                bar = ctk.CTkProgressBar(prog_frame, width=80, height=8, corner_radius=4, progress_color=ACCENT_COLOR, fg_color=BORDER_COLOR)
+                bar.set(prog_val / 100.0)
+                bar.pack(side="left")
+                bind_card_events(bar)
+                
+                pct = ctk.CTkLabel(prog_frame, text=f"{int(prog_val)}%", font=FONT_SMALL, text_color=TEXT_MUTED)
+                pct.pack(side="left", padx=(5, 0))
+                bind_card_events(pct)
+                card._cell_widgets[col["id"]] = (bar, pct)
+                
+            elif col_type == "action":
+                btn = ctk.CTkButton(cell_frame, text="→", font=("Inter", 16, "bold"), fg_color="transparent", 
+                                    text_color=TEXT_MUTED, hover_color=BG_COLOR, width=30,
+                                    command=lambda c=card: self.double_click_callback(c._row_data) if self.double_click_callback else None)
+                btn.pack(anchor="w")
+                card._cell_widgets[col["id"]] = btn
+            
+            else:
+                text_val = str(val)
+                if len(text_val) > 40: text_val = text_val[:37] + "..."
+                lbl = ctk.CTkLabel(cell_frame, text=text_val, font=FONT_MAIN, text_color=TEXT_COLOR)
+                lbl.pack(anchor="w")
+                bind_card_events(lbl)
+                card._cell_widgets[col["id"]] = lbl
+
+        return card
+
+    def _update_card(self, card: ctk.CTkFrame, row_data: Dict[str, Any]):
+        card._row_data = row_data
+        for col in self.columns:
+            cid = col["id"]
+            if cid not in card._cell_widgets:
+                continue
+            val = row_data.get(cid, "")
+            col_type = col.get("type")
+            if col_type == "pill":
+                pill = card._cell_widgets[cid]
+                color, text_color = self._get_pill_colors(val)
+                pill.configure(text=str(val).upper()[:15], fg_color=color, text_color=text_color)
+            elif col_type == "progress":
+                bar, pct = card._cell_widgets[cid]
+                prog_val = float(val) if val else 0.0
+                bar.set(prog_val / 100.0)
+                pct.configure(text=f"{int(prog_val)}%")
+            elif col_type != "action":
+                lbl = card._cell_widgets[cid]
+                text_val = str(val)
+                if len(text_val) > 40: text_val = text_val[:37] + "..."
+                lbl.configure(text=text_val)
+
+    def _highlight_card(self, card: ctk.CTkFrame):
+        steps = ["#dbeafe", "#e0e7ff", "#eff6ff", "#f8fafc", CARD_BG]
+        def _step(idx=0):
+            if idx < len(steps) and card.winfo_exists():
+                card.configure(fg_color=steps[idx])
+                self.after(100, lambda: _step(idx + 1))
+        _step()
+
+    def _load_data(self, data: List[Dict[str, Any]]):
         for widget in self.rows_frame.winfo_children():
             widget.destroy()
+        self.row_cards.clear()
         
         for row_data in data:
-            card = ctk.CTkFrame(self.rows_frame, fg_color=CARD_BG, border_width=1, border_color=BORDER_COLOR, corner_radius=8)
+            k = self._get_row_key(row_data)
+            card = self._create_card(row_data)
             card.pack(fill="x", pady=4, padx=2)
-            
-            def bind_card_events(widget):
-                def on_enter(e, c=card):
-                    c.configure(fg_color="#f8fafc", border_color="#cbd5e1")
-                def on_leave(e, c=card):
-                    c.configure(fg_color=CARD_BG, border_color=BORDER_COLOR)
-                widget.bind("<Enter>", on_enter, add="+")
-                widget.bind("<Leave>", on_leave, add="+")
-                if self.double_click_callback:
-                    widget.bind("<Double-1>", lambda e, d=row_data: self.double_click_callback(d))
-                    
-            bind_card_events(card)
-
-            for i, col in enumerate(self.columns):
-                weight = col.get("weight", 1)
-                card.grid_columnconfigure(i, weight=int(weight*10), uniform="col")
-                
-                val = row_data.get(col["id"], "")
-                
-                cell_frame = ctk.CTkFrame(card, fg_color="transparent")
-                cell_frame.grid(row=0, column=i, sticky="w", padx=10, pady=12)
-                bind_card_events(cell_frame)
-
-                if col.get("type") == "pill":
-                    color = "#e2e8f0"
-                    text_color = "#475569"
-                    val_lower = str(val).lower()
-                    if "completed" in val_lower or "done" in val_lower:
-                        color = "#dcfce7"; text_color = "#166534"
-                    elif "delayed" in val_lower or "overdue" in val_lower:
-                        color = "#fee2e2"; text_color = "#991b1b"
-                    elif "pending" in val_lower or "in progress" in val_lower or "active" in val_lower:
-                        color = "#dbeafe"; text_color = "#1e40af"
-                    elif "high" in val_lower or "urgent" in val_lower or "mrp" in val_lower:
-                        color = "#fef08a"; text_color = "#854d0e"
-                    elif "rfq" in val_lower:
-                        color = "#f3e8ff"; text_color = "#7e22ce"
-                        
-                    pill = ctk.CTkLabel(cell_frame, text=str(val).upper()[:15], font=("Inter", 10, "bold"),
-                                        fg_color=color, text_color=text_color, corner_radius=4, padx=8, pady=2)
-                    pill.pack(anchor="w")
-                    bind_card_events(pill)
-                
-                elif col.get("type") == "progress":
-                    prog_val = float(val) if val else 0.0
-                    prog_frame = ctk.CTkFrame(cell_frame, fg_color="transparent")
-                    prog_frame.pack(anchor="w", fill="x", expand=True)
-                    bind_card_events(prog_frame)
-                    
-                    bar = ctk.CTkProgressBar(prog_frame, width=80, height=8, corner_radius=4, progress_color=ACCENT_COLOR, fg_color=BORDER_COLOR)
-                    bar.set(prog_val / 100.0)
-                    bar.pack(side="left")
-                    bind_card_events(bar)
-                    
-                    pct = ctk.CTkLabel(prog_frame, text=f"{int(prog_val)}%", font=FONT_SMALL, text_color=TEXT_MUTED)
-                    pct.pack(side="left", padx=(5, 0))
-                    bind_card_events(pct)
-                    
-                elif col.get("type") == "action":
-                    btn = ctk.CTkButton(cell_frame, text="→", font=("Inter", 16, "bold"), fg_color="transparent", 
-                                        text_color=TEXT_MUTED, hover_color=BG_COLOR, width=30,
-                                        command=lambda d=row_data: self.double_click_callback(d) if self.double_click_callback else None)
-                    btn.pack(anchor="w")
-                
-                else:
-                    text_val = str(val)
-                    if len(text_val) > 40: text_val = text_val[:37] + "..."
-                    lbl = ctk.CTkLabel(cell_frame, text=text_val, font=FONT_MAIN, text_color=TEXT_COLOR)
-                    lbl.pack(anchor="w")
-                    bind_card_events(lbl)
+            self.row_cards[k] = card
 
     def update_data(self, new_data: List[Dict[str, Any]]):
+        scroll_y = 0.0
+        try:
+            scroll_y = self._parent_canvas.yview()[0]
+        except Exception:
+            pass
+
+        # Fast exit if identical
+        if self.data == new_data and len(self.row_cards) == len(new_data):
+            return
+
+        new_keys = [self._get_row_key(r) for r in new_data]
+        new_keys_set = set(new_keys)
+
+        # Remove cards that no longer exist
+        for old_k in list(self.row_cards.keys()):
+            if old_k not in new_keys_set:
+                self.row_cards[old_k].destroy()
+                del self.row_cards[old_k]
+
+        # Update existing or create new
+        for row_data, k in zip(new_data, new_keys):
+            if k in self.row_cards:
+                self._update_card(self.row_cards[k], row_data)
+            else:
+                card = self._create_card(row_data)
+                self.row_cards[k] = card
+                if getattr(self, "_initialized", False):
+                    self._highlight_card(card)
+
+        # Re-pack in proper order
+        for k in new_keys:
+            card = self.row_cards[k]
+            card.pack(fill="x", pady=4, padx=2)
+
         self.data = new_data
-        self._load_data(self.data)
+
+        if not new_data:
+            if not hasattr(self, "_lbl_empty") or not self._lbl_empty.winfo_exists():
+                self._lbl_empty = ctk.CTkLabel(self.rows_frame, text="No records found", font=FONT_MAIN, text_color=TEXT_MUTED)
+                self._lbl_empty.pack(pady=40)
+        else:
+            if hasattr(self, "_lbl_empty") and self._lbl_empty.winfo_exists():
+                self._lbl_empty.destroy()
+
+        def _restore():
+            try:
+                self._parent_canvas.yview_moveto(scroll_y)
+            except Exception:
+                pass
+        self.after_idle(_restore)
+        self.after(50, _restore)
 
 
 
@@ -375,6 +549,8 @@ class FilterBar(ctk.CTkFrame):
         self.on_filter_change = on_filter_change
         self.filter_options = filter_options
         self.filter_vars = {}
+        self.comboboxes = {}
+        self.entries = {}
 
         col = 0
         for opt in filter_options:
@@ -394,18 +570,33 @@ class FilterBar(ctk.CTkFrame):
                                      button_hover_color=BORDER_COLOR,
                                      width=opt.get("width", 140))
                 cb.grid(row=0, column=col, padx=(0, 15), pady=10)
+                self.comboboxes[opt["id"]] = cb
             elif opt["type"] == "search":
                 entry = ctk.CTkEntry(self, textvariable=var, placeholder_text="Search...",
                                      fg_color=BG_COLOR, border_width=1, border_color=BORDER_COLOR,
                                      text_color=TEXT_COLOR, width=opt.get("width", 200))
                 entry.grid(row=0, column=col, padx=(0, 15), pady=10)
+                self.entries[opt["id"]] = entry
                 var.trace_add("write", lambda *args: self._trigger_filter())
             col += 1
 
         btn_clear = ctk.CTkButton(self, text="Clear Filters", command=self._clear_filters,
-                                  fg_color="transparent", text_color=ACCENT_COLOR,
-                                  hover_color=BG_COLOR, border_width=1, border_color=ACCENT_COLOR)
+                                   fg_color="transparent", text_color=ACCENT_COLOR,
+                                   hover_color=BG_COLOR, border_width=1, border_color=ACCENT_COLOR)
         btn_clear.grid(row=0, column=col, padx=10, pady=10)
+
+    def update_dropdown_values(self, opt_id: str, new_values: List[str]):
+        cb = self.comboboxes.get(opt_id)
+        if not cb:
+            return
+        cur_val = self.filter_vars[opt_id].get()
+        old_values = list(cb.cget("values") or [])
+        if old_values != new_values:
+            cb.configure(values=new_values)
+            if cur_val in new_values:
+                self.filter_vars[opt_id].set(cur_val)
+            else:
+                self.filter_vars[opt_id].set("All")
 
     def _trigger_filter(self):
         filters = {k: v.get() for k, v in self.filter_vars.items()}

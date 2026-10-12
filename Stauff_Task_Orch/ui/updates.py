@@ -107,11 +107,12 @@ class UpdatesView(ctk.CTkFrame):
 
     def refresh_data(self):
         self.all_updates = self._get_filtered_updates()
+        people = ["All"] + sorted(list(set(u.person for u in self.all_updates if getattr(u, 'person', None))))
+        depts = ["All"] + sorted(list(set(u.department for u in self.all_updates if getattr(u, 'department', None))))
+        
         if hasattr(self, "filter_bar"):
-            self.filter_bar.destroy()
-            self._build_filters()
-            if hasattr(self, "data_table"):
-                self.data_table.pack_forget()
-                self.filter_bar.pack(fill="x", padx=20, pady=(0, 20))
-                self.data_table.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        self.data_table.update_data(self._get_table_data(self.all_updates))
+            self.filter_bar.update_dropdown_values("person", people)
+            self.filter_bar.update_dropdown_values("department", depts)
+            
+        filters = {k: v.get() for k, v in self.filter_bar.filter_vars.items()} if hasattr(self, "filter_bar") else {}
+        self._on_filter_change(filters)

@@ -138,24 +138,12 @@ class GoalsView(ctk.CTkFrame):
     def refresh_data(self):
         self.all_goals = self._get_filtered_goals()
         
-        current_filters = {}
+        timeframes = ["All"] + sorted(list(set(g.timeframe for g in self.all_goals if getattr(g, 'timeframe', None))))
+        people = ["All"] + sorted(list(set(g.person for g in self.all_goals if getattr(g, 'person', None))))
+        
         if hasattr(self, "filter_bar"):
-            current_filters = {k: v.get() for k, v in self.filter_bar.filter_vars.items()}
-            self.filter_bar.destroy()
-            self._build_filters()
+            self.filter_bar.update_dropdown_values("timeframe", timeframes)
+            self.filter_bar.update_dropdown_values("person", people)
             
-            for k, v in current_filters.items():
-                if k in self.filter_bar.filter_vars:
-                    opt = next((o for o in self.filter_bar.filter_options if o["id"] == k), None)
-                    if opt and opt["type"] == "search":
-                        self.filter_bar.filter_vars[k].set(v)
-                    elif opt and v in opt.get("values", []):
-                        self.filter_bar.filter_vars[k].set(v)
-                        
-            if hasattr(self, "data_table"):
-                self.data_table.pack_forget()
-                self.filter_bar.pack(fill="x", padx=20, pady=(0, 20))
-                self.data_table.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-                
         filters = {k: v.get() for k, v in self.filter_bar.filter_vars.items()} if hasattr(self, "filter_bar") else {}
         self._on_filter_change(filters)

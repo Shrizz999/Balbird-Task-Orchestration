@@ -13,6 +13,7 @@ import os
 import sys
 import threading
 from tkinter import messagebox
+from PIL import Image
 from config import COLORS, FONTS, DEPARTMENTS
 
 # Adjust font sizes for task_updater_app
@@ -48,6 +49,7 @@ from services.extension_store import (
 from services.local_sync import record_task_update
 from tkcalendar import DateEntry
 from datetime import datetime
+import traceback
 
 # Resolve paths relative to exe directory when frozen
 if getattr(sys, 'frozen', False):
@@ -55,7 +57,57 @@ if getattr(sys, 'frozen', False):
 else:
     _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
+def _setup_crash_proof_environment():
+    """Catches unhandled errors in main and worker threads, logs to crash_log.txt without crashing."""
+    crash_log_file = os.path.join(_APP_DIR, "crash_log.txt")
+
+    def global_excepthook(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        err_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        print(f"Unhandled exception prevented:\n{err_msg}")
+        try:
+            with open(crash_log_file, "a", encoding="utf-8") as f:
+                f.write(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] UNHANDLED ERROR:\n{err_msg}\n")
+        except Exception:
+            pass
+
+    sys.excepthook = global_excepthook
+
+    if hasattr(threading, 'excepthook'):
+        def thread_excepthook(args):
+            err_msg = "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))
+            print(f"Thread error in {args.thread.name} prevented:\n{err_msg}")
+            try:
+                with open(crash_log_file, "a", encoding="utf-8") as f:
+                    f.write(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] THREAD ERROR ({args.thread.name}):\n{err_msg}\n")
+            except Exception:
+                pass
+        threading.excepthook = thread_excepthook
+
+_setup_crash_proof_environment()
+
+def _resolve_resource_path(filename):
+    if hasattr(sys, '_MEIPASS'):
+        p = os.path.join(sys._MEIPASS, filename)
+        if os.path.exists(p):
+            return p
+    if getattr(sys, 'frozen', False):
+        p = os.path.join(os.path.dirname(sys.executable), filename)
+        if os.path.exists(p):
+            return p
+    candidates = [
+        os.path.join(_APP_DIR, filename),
+        os.path.join(os.getcwd(), filename),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return filename
+
 CACHE_FILE = os.path.join(_APP_DIR, "recent_task_updates.json")
+_USER_ICO_PATH = _resolve_resource_path("user.ico")
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -103,6 +155,30 @@ def save_recent_updates(updates_dict):
             json.dump(updates_dict, f)
     except Exception:
         pass
+
+
+def _hex_to_rgb(hex_str):
+    hex_str = str(hex_str).lstrip('#')
+    if len(hex_str) == 3:
+        hex_str = ''.join(c * 2 for c in hex_str)
+    return tuple(int(hex_str[i:i+2], 16) for i in (0, 2, 4))
+
+
+def _rgb_to_hex(rgb):
+    r = max(0, min(255, int(round(rgb[0]))))
+    g = max(0, min(255, int(round(rgb[1]))))
+    b = max(0, min(255, int(round(rgb[2]))))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _interpolate_color(c1, c2, factor):
+    try:
+        rgb1 = _hex_to_rgb(c1)
+        rgb2 = _hex_to_rgb(c2)
+        factor = max(0.0, min(1.0, float(factor)))
+        return _rgb_to_hex(tuple(rgb1[i] + (rgb2[i] - rgb1[i]) * factor for i in range(3)))
+    except Exception:
+        return c2
 
 
 class ModernComboBox(ctk.CTkComboBox):
@@ -193,13 +269,14 @@ class TaskUpdaterApp(ctk.CTk):
         super().__init__()
         self.attributes("-alpha", 0.0)
         ctk.set_appearance_mode("Light")
-        self.title("Stauff - Update Task Status")
+        self.title("Balbird TO - Employee Portal")
         self.geometry("1050x900")
         self.configure(fg_color=COLORS["bg"])
         self.after(0, lambda: self.state("zoomed"))
 
         try:
-            self.iconbitmap(os.path.join(_APP_DIR, "user.ico"))
+            if os.path.exists(_USER_ICO_PATH):
+                self.iconbitmap(_USER_ICO_PATH)
         except Exception:
             pass
 
@@ -214,9 +291,20 @@ class TaskUpdaterApp(ctk.CTk):
         self.current_dept = None
         self.current_user = None
 
-        # Sorting / filtering state
-        self._sort_key = "deadline_asc"   # default sort
-        self._filter_status = "Active"    # Active | All | Completed
+        # Sorting / filtering / search state
+        self._sort_param = "deadline"     # "deadline" | "priority" | "assigned" | "status"
+        self._sort_dir = "asc"            # "asc" | "desc"
+        self._filter_status = "Active"    # Active | All | Completed | Overdue | Delayed | High Priority
+        self.search_var = ctk.StringVar()
+
+        # Differential & seamless refresh state
+        self._task_rows = {}                # maps task_id -> row info dict
+        self._ext_rows = {}                 # maps ext_key -> ext row info dict
+        self._known_task_ids = set()        # set of seen task_id strings
+        self._is_initial_load = True        # True until first batch of tasks renders
+        self._user_dropdown_selections = {} # maps task_id -> user-selected status
+        self._is_fetching = False           # avoids overlapping background fetches
+        self._pending_refresh = False       # queues refresh if fetch was busy
 
         self.setup_login_ui()
         fade_in(self)
@@ -229,13 +317,28 @@ class TaskUpdaterApp(ctk.CTk):
         self.login_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.login_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
-        card = ctk.CTkFrame(self.login_frame, fg_color=COLORS["card_bg"], corner_radius=8)
+        card = ctk.CTkFrame(self.login_frame, fg_color=COLORS["card_bg"], corner_radius=12,
+                            border_width=1, border_color=COLORS["border"])
         card.place(relx=0.5, rely=0.5, anchor="center")
 
-        ctk.CTkLabel(card, text="Welcome", font=FONTS["header"],
-                     text_color=COLORS["text_main"]).pack(pady=(30, 10), padx=50)
-        ctk.CTkLabel(card, text="Please select your department and name",
-                     font=FONTS["body"], text_color=COLORS["text_dim"]).pack(pady=(0, 20), padx=50)
+        # Portal Icon Branding
+        self._login_icon_img = None
+        if os.path.exists(_USER_ICO_PATH):
+            try:
+                pil_icon = Image.open(_USER_ICO_PATH)
+                self._login_icon_img = ctk.CTkImage(light_image=pil_icon, dark_image=pil_icon, size=(52, 52))
+                lbl_icon = ctk.CTkLabel(card, text="", image=self._login_icon_img)
+                lbl_icon.pack(pady=(35, 10))
+            except Exception:
+                pass
+
+        top_pad = 0 if self._login_icon_img else 35
+        ctk.CTkLabel(card, text="Balbird TO", font=(FONTS["header"][0], 24, "bold"),
+                     text_color=COLORS["text_main"]).pack(pady=(top_pad, 2), padx=50)
+        ctk.CTkLabel(card, text="Employee Portal", font=(FONTS["body"][0], 13, "bold"),
+                     text_color=COLORS["accent"]).pack(pady=(0, 6), padx=50)
+        ctk.CTkLabel(card, text="Please select your department and name to continue",
+                     font=FONTS["small"], text_color=COLORS["text_dim"]).pack(pady=(0, 24), padx=50)
 
         self.login_combo_dept = ModernComboBox(
             card, values=list(self.departments.keys()),
@@ -290,13 +393,37 @@ class TaskUpdaterApp(ctk.CTk):
         left_header = ctk.CTkFrame(header_bar, fg_color="transparent")
         left_header.pack(side="left", padx=24, pady=8)
         
-        avatar_lbl = ctk.CTkLabel(left_header, text="👤", font=("Segoe UI", 28))
-        avatar_lbl.pack(side="left", padx=(0, 12))
+        # Portal Icon Branding
+        self._header_icon_img = None
+        if os.path.exists(_USER_ICO_PATH):
+            try:
+                pil_icon = Image.open(_USER_ICO_PATH)
+                self._header_icon_img = ctk.CTkImage(light_image=pil_icon, dark_image=pil_icon, size=(42, 42))
+            except Exception:
+                pass
+
+        if self._header_icon_img:
+            ctk.CTkLabel(left_header, text="", image=self._header_icon_img).pack(side="left", padx=(0, 14))
+        else:
+            ctk.CTkLabel(left_header, text="👤", font=("Segoe UI", 28)).pack(side="left", padx=(0, 14))
         
-        user_info = ctk.CTkFrame(left_header, fg_color="transparent")
-        user_info.pack(side="left")
-        ctk.CTkLabel(user_info, text=self.current_user, font=FONTS["body"], text_color=COLORS["text_main"]).pack(anchor="w")
-        ctk.CTkLabel(user_info, text=self.current_dept, font=FONTS["small"], text_color=COLORS["text_dim"]).pack(anchor="w")
+        # Brand & User Info Container
+        brand_container = ctk.CTkFrame(left_header, fg_color="transparent")
+        brand_container.pack(side="left")
+
+        title_line = ctk.CTkFrame(brand_container, fg_color="transparent")
+        title_line.pack(anchor="w")
+        ctk.CTkLabel(title_line, text="Balbird TO", font=("Segoe UI", 16, "bold"),
+                     text_color=COLORS["text_main"]).pack(side="left")
+        ctk.CTkLabel(title_line, text=" • Employee Portal", font=("Segoe UI", 11, "bold"),
+                     text_color=COLORS["accent"]).pack(side="left", padx=(4, 0))
+
+        sub_line = ctk.CTkFrame(brand_container, fg_color="transparent")
+        sub_line.pack(anchor="w", pady=(1, 0))
+        ctk.CTkLabel(sub_line, text=self.current_user, font=FONTS["body"],
+                     text_color=COLORS["text_main"]).pack(side="left")
+        ctk.CTkLabel(sub_line, text=f"({self.current_dept})", font=FONTS["small"],
+                     text_color=COLORS["text_dim"]).pack(side="left", padx=(6, 0))
 
         btn_frame = ctk.CTkFrame(header_bar, fg_color="transparent")
         btn_frame.pack(side="right", padx=24, pady=8)
@@ -306,29 +433,213 @@ class TaskUpdaterApp(ctk.CTk):
                       hover_color=COLORS["accent_hover"],
                       command=self._show_add_task_dialog).pack(side="left", padx=(0, 12))
 
-        ctk.CTkButton(btn_frame, text="↻ Refresh", width=90, height=36,
-                      font=FONTS["body"], fg_color="#FFFFFF", text_color=COLORS["primary_navy"], corner_radius=6,
-                      border_width=1, border_color=COLORS["border"], hover_color=COLORS["bg"],
-                      command=self._full_refresh).pack(side="left")
+        self.btn_refresh = ctk.CTkButton(btn_frame, text="↻ Refresh", width=90, height=36,
+                                         font=FONTS["body"], fg_color="#FFFFFF", text_color=COLORS["primary_navy"], corner_radius=6,
+                                         border_width=1, border_color=COLORS["border"], hover_color=COLORS["bg"],
+                                         command=self._full_refresh)
+        self.btn_refresh.pack(side="left")
 
-        # ── Scrollable body ──
-        self.body_scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.body_scroll.pack(fill="both", expand=True, padx=24, pady=16)
-        self.body_scroll.grid_columnconfigure(0, weight=1)
+        # ── Main Static Container (Fills window below header bar) ──
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_container.pack(fill="both", expand=True, padx=24, pady=(16, 20))
 
-        self._build_dashboard_content()
+        self._init_dashboard_containers()
+        self._trigger_fetch(is_background=False)
 
-    def _build_dashboard_content(self, is_background=False):
+    def _init_dashboard_containers(self):
+        """Builds static KPI bar and independent scrollable containers for tasks and extensions."""
+        # 1. KPI Outer Frame (Static at the top — always visible!)
+        self.kpi_outer = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        self.kpi_outer.pack(fill="x", pady=(0, 14))
+        self.kpi_labels = {}
+
+        cards_data = [
+            ("total",              "Total Tasks",      "-", "#F1F5F9", "#0F172A"),
+            ("active",             "Active",           "-", "#EFF6FF", "#1E3A8A"),
+            ("completed",          "Completed",        "-", "#ECFDF5", "#065F46"),
+            ("overdue",            "Overdue",          "-", "#FEF2F2", "#991B1B"),
+            ("due_today",          "Due Today",        "-", "#FFFBEB", "#92400E"),
+            ("due_this_week",      "Due This Week",    "-", "#F8FAFC", "#334155"),
+            ("high_priority",      "High / Urgent",    "-", "#FEF2F2", "#991B1B"),
+            ("pending_extensions", "Pending Ext.",     "-", "#F5F3FF", "#4C1D95"),
+        ]
+
+        for row_idx in range(2):
+            row_frame = ctk.CTkFrame(self.kpi_outer, fg_color="transparent")
+            row_frame.pack(fill="x", pady=3)
+            for col_idx in range(4):
+                row_frame.grid_columnconfigure(col_idx, weight=1, uniform="kpi_col")
+
+            for col_idx in range(4):
+                i = row_idx * 4 + col_idx
+                if i >= len(cards_data):
+                    break
+                key, label, val_default, bg_color, txt_color = cards_data[i]
+                card = ctk.CTkFrame(row_frame, fg_color=bg_color,
+                                    corner_radius=10, border_width=1, border_color=COLORS["border"])
+                card.grid(row=0, column=col_idx, sticky="nsew", padx=6, pady=2)
+
+                lbl_val = ctk.CTkLabel(card, text=val_default, font=(FONTS["header"][0], 22, "bold"),
+                                       text_color=txt_color, fg_color="transparent")
+                lbl_val.pack(anchor="w", padx=16, pady=(10, 0))
+                self.kpi_labels[key] = lbl_val
+
+                ctk.CTkLabel(card, text=label, font=FONTS["small"],
+                             text_color=txt_color, fg_color="transparent").pack(anchor="w", padx=16, pady=(2, 10))
+
+        # 2. Main Two-Column Frame (Fills all remaining vertical height)
+        columns_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        columns_frame.pack(fill="both", expand=True)
+        columns_frame.grid_columnconfigure(0, weight=7)
+        columns_frame.grid_columnconfigure(1, weight=3)
+        columns_frame.grid_rowconfigure(0, weight=1)
+
+        left_col = ctk.CTkFrame(columns_frame, fg_color="transparent")
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+
+        right_col = ctk.CTkFrame(columns_frame, fg_color="transparent")
+        right_col.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+
+        # ── Left Column: My Tasks Section ──
+        tasks_section = ctk.CTkFrame(left_col, fg_color=COLORS["card_bg"],
+                                     corner_radius=12, border_width=1, border_color=COLORS["border"])
+        tasks_section.pack(fill="both", expand=True)
+
+        hdr_left = ctk.CTkFrame(tasks_section, fg_color="transparent")
+        hdr_left.pack(fill="x", padx=20, pady=(16, 10))
+
+        title_frame = ctk.CTkFrame(hdr_left, fg_color="transparent")
+        title_frame.pack(side="left")
+        ctk.CTkLabel(title_frame, text="My Tasks", font=("Segoe UI", 18, "bold"), text_color=COLORS["text_main"]).pack(anchor="w")
+        ctk.CTkLabel(title_frame, text="Tasks assigned to you and their current status",
+                     font=FONTS["small"], text_color=COLORS["text_dim"]).pack(anchor="w", pady=(1, 0))
+
+        toolbar = ctk.CTkFrame(hdr_left, fg_color="transparent")
+        toolbar.pack(side="right", pady=2)
+
+        # Search Entry with instant clear button
+        search_box = ctk.CTkFrame(toolbar, fg_color="transparent")
+        search_box.pack(side="left", padx=(0, 10))
+
+        self.search_entry = ctk.CTkEntry(
+            search_box, textvariable=self.search_var, placeholder_text="🔍 Search tasks...",
+            width=210, height=34, font=FONTS["small"], fg_color="#FFFFFF",
+            border_width=1, border_color=COLORS["border"], corner_radius=6,
+            text_color=COLORS["text_main"]
+        )
+        self.search_entry.pack(side="left")
+
+        self.btn_clear_search = ctk.CTkButton(
+            search_box, text="✕", width=28, height=34, font=("Segoe UI", 11),
+            fg_color="#FFFFFF", hover_color=COLORS["bg"], text_color=COLORS["text_dim"],
+            border_width=1, border_color=COLORS["border"], corner_radius=6,
+            command=lambda: [self.search_var.set(""), self.search_entry.focus_set()]
+        )
+        self.btn_clear_search.pack(side="left", padx=(4, 0))
+
+        self.search_entry.bind("<Escape>", lambda _: [self.search_var.set(""), self.search_entry.focus_set()])
+        self.search_var.trace_add("write", lambda *_: self._on_sort_filter_change())
+
+        self.filter_combo = ModernComboBox(
+            toolbar, values=["Active", "All", "Completed", "Overdue", "Delayed", "High Priority"],
+            width=150, height=34, font=FONTS["small"], dropdown_font=FONTS["small"], corner_radius=6,
+            command=lambda _: self._on_sort_filter_change())
+        self.filter_combo.set(self._filter_status)
+        self.filter_combo.pack(side="left")
+
+        # ── Parameter Sort Bar (Click once -> asc, click again -> desc with reversed arrow!) ──
+        self.sort_bar = ctk.CTkFrame(tasks_section, fg_color="transparent")
+        self.sort_bar.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkLabel(self.sort_bar, text="Sort by:", font=FONTS["small"],
+                     text_color=COLORS["text_dim"]).pack(side="left", padx=(0, 10))
+
+        self.sort_buttons = {}
+        sort_params = [
+            ("deadline", "Deadline"),
+            ("priority", "Priority"),
+            ("assigned", "Assigned Date"),
+            ("status",   "Status"),
+        ]
+
+        for param_key, param_label in sort_params:
+            btn = ctk.CTkButton(
+                self.sort_bar, text=f"{param_label} ↕", width=110, height=30,
+                font=FONTS["small"], fg_color="#FFFFFF", hover_color="#F1F5F9",
+                text_color=COLORS["text_dim"], border_width=1, border_color=COLORS["border"],
+                corner_radius=6, command=lambda p=param_key: self._on_sort_param_click(p)
+            )
+            btn.pack(side="left", padx=(0, 8))
+            self.sort_buttons[param_key] = (btn, param_label)
+
+        self._update_sort_buttons_ui()
+
+        # Individual Scrollable Container for Tasks (Only this window scrolls!)
+        self.tasks_container = ctk.CTkScrollableFrame(tasks_section, fg_color="transparent")
+        self.tasks_container.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        self.tasks_container.grid_columnconfigure(0, weight=1)
+        self.body_scroll = self.tasks_container  # backwards-compatibility alias
+
+        self.tasks_loading_lbl = ctk.CTkLabel(self.tasks_container, text="Loading your tasks, please wait...",
+                                              font=FONTS["body"], text_color=COLORS["text_dim"])
+        self.tasks_loading_lbl.pack(pady=30)
+
+        self.empty_tasks_frame = ctk.CTkFrame(self.tasks_container, fg_color="transparent")
+        self.lbl_empty_title = ctk.CTkLabel(self.empty_tasks_frame, text="No active tasks", font=FONTS["subheader"], text_color=COLORS["text_main"])
+        self.lbl_empty_title.pack()
+        self.lbl_empty_desc = ctk.CTkLabel(self.empty_tasks_frame, text="You currently have no tasks matching this filter.", font=FONTS["body"], text_color=COLORS["text_dim"])
+        self.lbl_empty_desc.pack(pady=(5, 15))
+        ctk.CTkButton(self.empty_tasks_frame, text="Clear Filters & Search", font=FONTS["body"], fg_color="transparent",
+                      border_width=1, border_color=COLORS["border"], text_color=COLORS["text_main"], hover_color=COLORS["bg"],
+                      command=lambda: [self.filter_combo.set("All"), self.search_var.set(""), self._on_sort_filter_change()]).pack()
+
+        # ── Right Column: Extension Requests Section ──
+        ext_section = ctk.CTkFrame(right_col, fg_color=COLORS["card_bg"],
+                                   corner_radius=12, border_width=1, border_color=COLORS["border"])
+        ext_section.pack(fill="both", expand=True)
+
+        hdr_right = ctk.CTkFrame(ext_section, fg_color="transparent")
+        hdr_right.pack(fill="x", padx=20, pady=(16, 10))
+
+        title_r_frame = ctk.CTkFrame(hdr_right, fg_color="transparent")
+        title_r_frame.pack(side="left")
+        ctk.CTkLabel(title_r_frame, text="My Extension Requests", font=("Segoe UI", 18, "bold"), text_color=COLORS["text_main"]).pack(anchor="w")
+        ctk.CTkLabel(title_r_frame, text="Track your deadline change requests",
+                     font=FONTS["small"], text_color=COLORS["text_dim"]).pack(anchor="w", pady=(1, 0))
+
+        self.btn_ext_refresh = ctk.CTkButton(hdr_right, text="↻", width=34, font=FONTS["small"], corner_radius=6,
+                                             fg_color="transparent", border_width=1, border_color=COLORS["border"],
+                                             text_color=COLORS["text_main"], hover_color=COLORS["bg"],
+                                             height=34, command=self._full_refresh)
+        self.btn_ext_refresh.pack(side="right")
+
+        # Individual Scrollable Container for Extension Requests (Only this window scrolls!)
+        self.ext_container = ctk.CTkScrollableFrame(ext_section, fg_color="transparent")
+        self.ext_container.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+
+        self.ext_loading_lbl = ctk.CTkLabel(self.ext_container, text="Loading requests...", font=FONTS["body"], text_color=COLORS["text_dim"])
+        self.ext_loading_lbl.pack(pady=30)
+
+        self.empty_ext_frame = ctk.CTkFrame(self.ext_container, fg_color="transparent")
+        ctk.CTkLabel(self.empty_ext_frame, text="No extension requests yet.", font=FONTS["body"], text_color=COLORS["text_dim"]).pack(pady=40)
+
+    def _trigger_fetch(self, is_background=False):
+        """Asynchronously fetches data and applies it in-place without resetting scroll or widget states."""
+        if getattr(self, '_is_fetching', False):
+            self._pending_refresh = True
+            return
+
+        self._is_fetching = True
         self._current_render_id = getattr(self, '_current_render_id', 0) + 1
         current_id = self._current_render_id
 
-        loading_lbl = None
         if not is_background:
-            for w in self.body_scroll.winfo_children():
-                w.destroy()
-            loading_lbl = ctk.CTkLabel(self.body_scroll, text="Loading data, please wait...", font=FONTS["body"], text_color=COLORS["text_dim"])
-            loading_lbl.pack(pady=40)
-        
+            if hasattr(self, "btn_refresh"):
+                try:
+                    self.btn_refresh.configure(text="↻ Syncing...", state="disabled")
+                except Exception:
+                    pass
+
         def fetch_data_thread():
             try:
                 self._fetch_tasks_data()
@@ -336,23 +647,45 @@ class TaskUpdaterApp(ctk.CTk):
             except Exception as e:
                 print(f"Error fetching data: {e}")
                 ext_requests = []
-            
-            def render_if_current():
-                if self._current_render_id == current_id:
-                    self._render_dashboard_content(loading_lbl, ext_requests, is_background)
-            
-            self.after(0, render_if_current)
-            
+
+            def apply_if_current():
+                try:
+                    self._is_fetching = False
+                    if hasattr(self, "btn_refresh"):
+                        try:
+                            self.btn_refresh.configure(text="↻ Refresh", state="normal")
+                        except Exception:
+                            pass
+                    if hasattr(self, "btn_ext_refresh"):
+                        try:
+                            self.btn_ext_refresh.configure(state="normal")
+                        except Exception:
+                            pass
+
+                    if self._current_render_id == current_id:
+                        self._apply_dashboard_data(ext_requests)
+
+                    if getattr(self, '_pending_refresh', False):
+                        self._pending_refresh = False
+                        self._trigger_fetch(is_background=True)
+                except Exception as e:
+                    print(f"Error applying dashboard updates: {e}")
+
+            self.after(0, apply_if_current)
+
         threading.Thread(target=fetch_data_thread, daemon=True).start()
 
-    def _render_dashboard_content(self, loading_lbl, ext_requests, is_background):
-        if loading_lbl and loading_lbl.winfo_exists():
-            loading_lbl.destroy()
-            
-        if is_background:
-            for w in self.body_scroll.winfo_children():
-                w.destroy()
-            
+    def _build_dashboard_content(self, is_background=False):
+        """Backwards compatibility shim for _trigger_fetch."""
+        self._trigger_fetch(is_background=is_background)
+
+    def _apply_dashboard_data(self, ext_requests):
+        """Calculates derived metrics and updates KPI, tasks, and extensions in place."""
+        if hasattr(self, "tasks_loading_lbl") and self.tasks_loading_lbl.winfo_exists():
+            self.tasks_loading_lbl.pack_forget()
+        if hasattr(self, "ext_loading_lbl") and self.ext_loading_lbl.winfo_exists():
+            self.ext_loading_lbl.pack_forget()
+
         today = datetime.now().date()
         all_tasks = self.current_tasks
 
@@ -378,8 +711,8 @@ class TaskUpdaterApp(ctk.CTk):
         high_priority = [t for t in active_tasks if t.priority.lower() in ("high", "urgent")]
         pending_ext = [r for r in ext_requests if r["status"] == "Pending"]
 
-        self._build_kpi_section(
-            self.body_scroll,
+        # 1. Update KPI numbers in-place
+        self._update_kpi_section(
             total=len(all_tasks),
             active=len(active_tasks),
             completed=len(completed_tasks),
@@ -390,103 +723,87 @@ class TaskUpdaterApp(ctk.CTk):
             pending_extensions=len(pending_ext),
         )
 
-        columns_frame = ctk.CTkFrame(self.body_scroll, fg_color="transparent")
-        columns_frame.pack(fill="both", expand=True)
-        columns_frame.grid_columnconfigure(0, weight=7)
-        columns_frame.grid_columnconfigure(1, weight=3)
+        # 2. Update task cards in-place with diffing & smooth entrance animation
+        self._update_tasks_display(all_tasks, today)
 
-        left_col = ctk.CTkFrame(columns_frame, fg_color="transparent")
-        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        # 3. Update extension request cards in-place
+        self._update_extension_display(ext_requests)
 
-        right_col = ctk.CTkFrame(columns_frame, fg_color="transparent")
-        right_col.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+    def _update_kpi_section(self, **kpis):
+        """Updates numeric labels in the KPI section without rebuilding frames."""
+        mapping = {
+            "total": str(kpis["total"]),
+            "active": str(kpis["active"]),
+            "completed": str(kpis["completed"]),
+            "overdue": str(kpis["overdue"]),
+            "due_today": str(kpis["due_today"]),
+            "due_this_week": str(kpis["due_this_week"]),
+            "high_priority": str(kpis["high_priority"]),
+            "pending_extensions": str(kpis["pending_extensions"]),
+        }
+        for key, val in mapping.items():
+            lbl = self.kpi_labels.get(key)
+            if lbl and lbl.winfo_exists() and lbl.cget("text") != val:
+                lbl.configure(text=val)
 
-        self._build_task_list_section(left_col, all_tasks, today)
-        self._build_extension_section(right_col, ext_requests)
+    def _on_sort_param_click(self, param):
+        """Click once -> ascending (↑). Click same again -> descending (↓) with reversed arrow."""
+        if self._sort_param == param:
+            self._sort_dir = "desc" if self._sort_dir == "asc" else "asc"
+        else:
+            self._sort_param = param
+            self._sort_dir = "asc"
 
-    def _build_kpi_section(self, parent, **kpis):
-        kpi_outer = ctk.CTkFrame(parent, fg_color="transparent")
-        kpi_outer.pack(fill="x", pady=(0, 20))
+        self._update_sort_buttons_ui()
+        self._on_sort_filter_change()
 
-        cards_data = [
-            ("Total Tasks",      str(kpis["total"]),             "#F1F5F9", "#0F172A"),
-            ("Active",           str(kpis["active"]),             "#EFF6FF", "#1E3A8A"),
-            ("Completed",        str(kpis["completed"]),          "#ECFDF5", "#065F46"),
-            ("Overdue",          str(kpis["overdue"]),            "#FEF2F2", "#991B1B"),
-            ("Due Today",        str(kpis["due_today"]),          "#FFFBEB", "#92400E"),
-            ("Due This Week",    str(kpis["due_this_week"]),      "#F8FAFC", "#334155"),
-            ("High / Urgent",    str(kpis["high_priority"]),      "#FEF2F2", "#991B1B"),
-            ("Pending Ext.",     str(kpis["pending_extensions"]), "#F5F3FF", "#4C1D95"),
-        ]
+    def _update_sort_buttons_ui(self):
+        """Updates text and visual highlight on sort buttons to reflect active param and arrow direction."""
+        if not hasattr(self, "sort_buttons"):
+            return
+        for param_key, (btn, param_label) in self.sort_buttons.items():
+            try:
+                if not btn.winfo_exists():
+                    continue
+                if param_key == self._sort_param:
+                    arrow = "↑" if self._sort_dir == "asc" else "↓"
+                    btn.configure(
+                        text=f"{param_label} {arrow}",
+                        fg_color=COLORS["accent"],
+                        text_color="#FFFFFF",
+                        hover_color=COLORS["accent_hover"],
+                        border_color=COLORS["accent"],
+                        font=(FONTS["small"][0], FONTS["small"][1], "bold")
+                    )
+                else:
+                    btn.configure(
+                        text=f"{param_label} ↕",
+                        fg_color="#FFFFFF",
+                        text_color=COLORS["text_dim"],
+                        hover_color="#F1F5F9",
+                        border_color=COLORS["border"],
+                        font=FONTS["small"]
+                    )
+            except Exception:
+                pass
 
-        for row_idx in range(2):
-            row_frame = ctk.CTkFrame(kpi_outer, fg_color="transparent")
-            row_frame.pack(fill="x", pady=6)
-            for col_idx in range(4):
-                row_frame.grid_columnconfigure(col_idx, weight=1, uniform="kpi_col")
-                
-            for col_idx in range(4):
-                i = row_idx * 4 + col_idx
-                if i >= len(cards_data):
-                    break
-                label, value, bg_color, txt_color = cards_data[i]
-                
-                card = ctk.CTkFrame(row_frame, fg_color=bg_color,
-                                    corner_radius=12, border_width=1, border_color=COLORS["border"])
-                card.grid(row=0, column=col_idx, sticky="nsew", padx=8, pady=2)
-
-                ctk.CTkLabel(card, text=value, font=(FONTS["header"][0], 28),
-                             text_color=txt_color, fg_color="transparent").pack(anchor="w", padx=20, pady=(20, 0))
-                ctk.CTkLabel(card, text=label, font=FONTS["body"],
-                             text_color=txt_color, fg_color="transparent").pack(anchor="w", padx=20, pady=(4, 20))
-
-    def _build_task_list_section(self, parent, all_tasks, today):
-        section = ctk.CTkFrame(parent, fg_color=COLORS["card_bg"],
-                               corner_radius=12, border_width=1, border_color=COLORS["border"])
-        section.pack(fill="both", expand=True)
-
-        hdr = ctk.CTkFrame(section, fg_color="transparent")
-        hdr.pack(fill="x", padx=24, pady=(24, 16))
-        
-        title_frame = ctk.CTkFrame(hdr, fg_color="transparent")
-        title_frame.pack(side="left")
-        ctk.CTkLabel(title_frame, text="My Tasks", font=("Segoe UI", 20), text_color=COLORS["text_main"]).pack(anchor="w")
-        ctk.CTkLabel(title_frame, text="Tasks assigned to you and their current status", 
-                     font=FONTS["body"], text_color=COLORS["text_dim"]).pack(anchor="w", pady=(2, 0))
-
-        toolbar = ctk.CTkFrame(hdr, fg_color="transparent")
-        toolbar.pack(side="right", pady=4)
-        
-        self.filter_combo = ModernComboBox(
-            toolbar, values=["Active", "All", "Completed", "Overdue", "Delayed", "High Priority"],
-            width=170, height=36, font=FONTS["body"], dropdown_font=FONTS["body"], corner_radius=6,
-            command=lambda _: self._on_sort_filter_change())
-        self.filter_combo.set(self._filter_status)
-        self.filter_combo.pack(side="right", padx=(8, 0))
-
-        self.sort_combo = ModernComboBox(
-            toolbar, values=["Deadline ↑", "Deadline ↓", "Priority ↓", "Assigned ↑"],
-            width=170, height=36, font=FONTS["body"], dropdown_font=FONTS["body"], corner_radius=6,
-            command=lambda _: self._on_sort_filter_change())
-        self.sort_combo.set("Deadline ↑")
-        self.sort_combo.pack(side="right", padx=(8, 0))
-        
-        self.tasks_container = ctk.CTkFrame(section, fg_color="transparent")
-        self.tasks_container.pack(fill="both", expand=True, padx=24, pady=(0, 24))
-        self.tasks_container.grid_columnconfigure(0, weight=1)
-
-        self._render_sorted_filtered_tasks(all_tasks, today)
     def _on_sort_filter_change(self):
-        self._filter_status = self.filter_combo.get()
+        """Called when employee changes filter, search query, or sort parameters."""
+        if hasattr(self, "filter_combo"):
+            self._filter_status = self.filter_combo.get()
         today = datetime.now().date()
-        self._render_sorted_filtered_tasks(self.current_tasks, today)
+        self._update_tasks_display(self.current_tasks, today)
 
-    def _render_sorted_filtered_tasks(self, all_tasks, today):
-        for w in self.tasks_container.winfo_children():
-            w.destroy()
-        self.status_vars.clear()
-        self.modified_task_info.clear()
+    def _update_tasks_display(self, all_tasks, today):
+        """Seamlessly updates the task list in place, preserving scroll position and active dropdowns."""
+        # 1. Capture current scroll position to maintain it exactly
+        current_scroll = None
+        try:
+            current_scroll = self.tasks_container._parent_canvas.yview()[0]
+        except Exception:
+            pass
 
+        # 2. Filter tasks by status dropdown
         filt = self.filter_combo.get() if hasattr(self, "filter_combo") else self._filter_status
         if filt == "Active":
             tasks = [t for t in all_tasks if t.status.lower() not in ("completed", "done")]
@@ -505,57 +822,190 @@ class TaskUpdaterApp(ctk.CTk):
         else:
             tasks = list(all_tasks)
 
-        sort_val = self.sort_combo.get() if hasattr(self, "sort_combo") else "Deadline ↑"
+        # 3. Filter tasks by search query (multi-token search across ID, description, priority, dates, checklist)
+        search_query = self.search_var.get().strip().lower() if hasattr(self, "search_var") else ""
+        if search_query:
+            tokens = search_query.split()
+            filtered_by_search = []
+            for t in tasks:
+                t_id = str(getattr(t, "task_id", "") or "")
+                short_id = t_id[-4:] if len(t_id) >= 4 else t_id
+                desc = str(getattr(t, "description", "") or getattr(t, "task", "") or "")
+                prio = str(getattr(t, "priority", "") or "")
+                stat = str(getattr(t, "status", "") or "")
+                assigned_d = str(getattr(t, "date", "") or "")
+                eff_dl = str(getattr(t, "_effective_deadline", "") or getattr(t, "deadline", "") or "")
+                eff_dl_fmt = format_date(eff_dl) if eff_dl else ""
+
+                chk_items = []
+                chk = getattr(t, "checklist", None)
+                if isinstance(chk, list):
+                    for item in chk:
+                        if isinstance(item, dict):
+                            chk_items.append(str(item.get("item", "")))
+                        else:
+                            chk_items.append(str(item))
+                chk_text = " ".join(chk_items)
+
+                searchable = f"{t_id} {short_id} {desc} {prio} {stat} {assigned_d} {eff_dl} {eff_dl_fmt} {chk_text}".lower()
+                if all(tok in searchable for tok in tokens):
+                    filtered_by_search.append(t)
+            tasks = filtered_by_search
+
+        # 4. Sort tasks according to active parameter & direction (asc / desc)
         far_future = datetime(2099, 12, 31).date()
-        far_past = datetime(2000, 1, 1).date()
+        is_desc = (self._sort_dir == "desc")
 
-        if "Deadline ↑" in sort_val:
-            tasks.sort(key=lambda t: t._effective_deadline_date or far_future)
-        elif "Deadline ↓" in sort_val:
-            tasks.sort(key=lambda t: t._effective_deadline_date or far_past, reverse=True)
-        elif "Priority" in sort_val:
+        if self._sort_param == "deadline":
+            if not is_desc:
+                tasks.sort(key=lambda t: (t._effective_deadline_date is None, t._effective_deadline_date or far_future))
+            else:
+                tasks.sort(key=lambda t: (t._effective_deadline_date is None, -(t._effective_deadline_date.toordinal() if t._effective_deadline_date else 0)))
+        elif self._sort_param == "priority":
             prio_order = {"urgent": 0, "high": 1, "medium": 2, "normal": 2, "low": 3}
-            tasks.sort(key=lambda t: prio_order.get(t.priority.lower(), 9))
-        elif "Assigned" in sort_val:
-            tasks.sort(key=lambda t: _parse_deadline(t.date) or far_past)
+            tasks.sort(key=lambda t: prio_order.get(str(t.priority).strip().lower(), 9), reverse=is_desc)
+        elif self._sort_param == "assigned":
+            if not is_desc:
+                tasks.sort(key=lambda t: (_parse_deadline(t.date) is None, _parse_deadline(t.date) or far_future))
+            else:
+                tasks.sort(key=lambda t: (_parse_deadline(t.date) is None, -(_parse_deadline(t.date).toordinal() if _parse_deadline(t.date) else 0)))
+        elif self._sort_param == "status":
+            status_order = {"delayed": 0, "overdue": 1, "active": 2, "in progress": 3, "pending": 4, "completed": 5, "done": 6}
+            tasks.sort(key=lambda t: status_order.get(str(t.status).strip().lower(), 9), reverse=is_desc)
 
+        # 5. Handle empty state
         if not tasks:
-            empty_frame = ctk.CTkFrame(self.tasks_container, fg_color="transparent")
-            empty_frame.pack(pady=40)
-            ctk.CTkLabel(empty_frame, text="No active tasks", font=FONTS["subheader"], text_color=COLORS["text_main"]).pack()
-            ctk.CTkLabel(empty_frame, text="You currently have no tasks matching this filter.", font=FONTS["body"], text_color=COLORS["text_dim"]).pack(pady=(5, 15))
-            ctk.CTkButton(empty_frame, text="View All Tasks", font=FONTS["body"], fg_color="transparent",
-                          border_width=1, border_color=COLORS["border"], text_color=COLORS["text_main"], hover_color=COLORS["bg"],
-                          command=lambda: [self.filter_combo.set("All"), self._on_sort_filter_change()]).pack()
+            for info in self._task_rows.values():
+                info["row_widget"].grid_remove()
+            if hasattr(self, "empty_tasks_frame"):
+                if search_query:
+                    if hasattr(self, "lbl_empty_title"):
+                        self.lbl_empty_title.configure(text="No matching tasks found")
+                    if hasattr(self, "lbl_empty_desc"):
+                        self.lbl_empty_desc.configure(text=f"No tasks match your search \"{self.search_var.get().strip()}\".")
+                else:
+                    if hasattr(self, "lbl_empty_title"):
+                        self.lbl_empty_title.configure(text=f"No {filt.lower()} tasks")
+                    if hasattr(self, "lbl_empty_desc"):
+                        self.lbl_empty_desc.configure(text=f"You currently have no tasks matching the \"{filt}\" filter.")
+                self.empty_tasks_frame.pack(pady=40)
             return
 
-        for idx, task in enumerate(tasks):
-            self._build_task_row(idx, task, today)
+        if hasattr(self, "empty_tasks_frame"):
+            self.empty_tasks_frame.pack_forget()
 
-    def _build_task_row(self, idx, task, today):
+        # 5. Differential row updates
+        target_ids = [t.task_id for t in tasks]
+        target_ids_set = set(target_ids)
+        existing_ids = set(self._task_rows.keys())
+
+        # Hide rows that don't match the active filter
+        for t_id in existing_ids:
+            if t_id not in target_ids_set:
+                self._task_rows[t_id]["row_widget"].grid_remove()
+
+        # Detect if employee currently has any dropdown actively opened
+        user_interacting = False
+        for info in self._task_rows.values():
+            combo = info.get("status_combo")
+            if combo and hasattr(combo, "_dropdown_menu") and combo._dropdown_menu.is_open():
+                user_interacting = True
+                break
+
+        # Render or update each task in sorted order
+        for idx, task in enumerate(tasks):
+            t_id = task.task_id
+            if t_id in self._task_rows:
+                info = self._task_rows[t_id]
+                self._update_existing_task_row(info, task, today, user_interacting)
+            else:
+                # Brand new task
+                is_brand_new = (not self._is_initial_load) and (t_id not in self._known_task_ids)
+                info = self._create_task_row(task, today, is_brand_new=is_brand_new)
+                self._task_rows[t_id] = info
+
+            self._known_task_ids.add(t_id)
+
+            # Re-grid at the sorted position
+            info["row_widget"].grid(row=idx, column=0, sticky="ew", pady=4)
+
+        if self._is_initial_load:
+            self._is_initial_load = False
+
+        # 6. Restore scroll position seamlessly
+        if current_scroll is not None:
+            try:
+                self.after_idle(lambda: self.tasks_container._parent_canvas.yview_moveto(current_scroll))
+            except Exception:
+                pass
+
+    def _update_existing_task_row(self, info, task, today, user_interacting):
+        """Updates text and badges on an existing task card in-place while preserving combobox selections."""
+        old_task = info["task"]
+        info["task"] = task
+
+        # Format deadlines
+        eff_dl = task._effective_deadline
+        dl_str = format_date(eff_dl)
+        dl_color = COLORS["text_dim"]
+        if task._effective_deadline_date and task._effective_deadline_date < today and task.status.lower() not in ("completed", "done"):
+            dl_color = COLORS["error"]
+
+        status_color = COLORS["success"] if task.status.lower() in ("completed", "done") else (COLORS["info"] if task.status.lower() == "active" else COLORS["warning"])
+        prio_color = COLORS["error"] if task.priority.lower() in ("high", "urgent") else (COLORS["warning"] if task.priority.lower() in ("medium", "normal") else COLORS["text_dim"])
+
+        # In-place label updates
+        if info["lbl_status"].cget("text") != task.status.upper():
+            info["lbl_status"].configure(text=task.status.upper(), text_color=status_color)
+            if not user_interacting:
+                self._pulse_card_border(info["inner_card"])
+
+        if info["lbl_dl"].cget("text") != f"Due: {dl_str}":
+            info["lbl_dl"].configure(text=f"Due: {dl_str}", text_color=dl_color)
+
+        if info["lbl_prio"].cget("text") != task.priority.upper():
+            info["lbl_prio"].configure(text=task.priority.upper(), text_color=prio_color)
+
+        if info["lbl_desc"].cget("text") != task.description:
+            info["lbl_desc"].configure(text=task.description)
+
+        # Combobox selection is preserved! If the employee picked a status, info["status_var"].get() remains intact.
+
+    def _create_task_row(self, task, today, is_brand_new=False):
+        """Creates a single task row widget and triggers entrance animations if newly added."""
         row = ctk.CTkFrame(self.tasks_container, fg_color="transparent", border_width=0)
-        row.grid(row=idx, column=0, sticky="ew", pady=4)
         row.grid_columnconfigure(0, weight=1)
 
-        inner = ctk.CTkFrame(row, fg_color=COLORS["card_bg"], border_width=1, border_color=COLORS["border"], corner_radius=8)
+        start_bg = "#EFF6FF" if is_brand_new else COLORS["card_bg"]
+        start_border = "#3B82F6" if is_brand_new else COLORS["border"]
+        border_w = 2 if is_brand_new else 1
+
+        inner = ctk.CTkFrame(row, fg_color=start_bg, border_width=border_w,
+                             border_color=start_border, corner_radius=8)
         inner.grid(row=0, column=0, sticky="ew", pady=2)
         inner.grid_columnconfigure(1, weight=1)
 
         def bind_events(widget, t=task):
             widget.bind("<Double-1>", lambda event, tk=t: self.show_task_details_dialog(tk))
-            # Hover animations have been removed to prevent glitching.
-            
+
         bind_events(inner)
 
         left_info = ctk.CTkFrame(inner, fg_color="transparent")
         left_info.grid(row=0, column=0, padx=20, pady=16, sticky="w")
         bind_events(left_info)
-        
+
+        new_badge = None
+        if is_brand_new:
+            new_badge = ctk.CTkLabel(left_info, text="✨ NEW", font=("Segoe UI", 9, "bold"),
+                                     text_color="#1D4ED8", fg_color="#DBEAFE", corner_radius=4,
+                                     width=52, height=18)
+            new_badge.pack(anchor="w", pady=(0, 2))
+
         short_id = str(task.task_id)[-4:] if getattr(task, 'task_id', None) else ""
         lbl_id = ctk.CTkLabel(left_info, text=short_id, font=FONTS["small"], text_color=COLORS["text_dim"])
         lbl_id.pack(anchor="w")
         bind_events(lbl_id)
-        
+
         prio_color = COLORS["error"] if task.priority.lower() in ("high", "urgent") else (COLORS["warning"] if task.priority.lower() in ("medium", "normal") else COLORS["text_dim"])
         lbl_prio = ctk.CTkLabel(left_info, text=task.priority.upper(), font=("Segoe UI", 9), text_color=prio_color)
         lbl_prio.pack(anchor="w", pady=(2, 0))
@@ -566,19 +1016,18 @@ class TaskUpdaterApp(ctk.CTk):
         bind_events(mid_info)
         lbl_desc = ctk.CTkLabel(mid_info, text=task.description, font=("Segoe UI", 14), text_color=COLORS["text_main"], justify="left", wraplength=450, anchor="w")
         lbl_desc.pack(anchor="w", fill="both", expand=True)
-        
         bind_events(lbl_desc)
 
         right_info = ctk.CTkFrame(inner, fg_color="transparent")
         right_info.grid(row=0, column=2, padx=20, pady=16, sticky="e")
         bind_events(right_info)
-        
+
         eff_dl = task._effective_deadline
         dl_str = format_date(eff_dl)
         dl_color = COLORS["text_dim"]
         if task._effective_deadline_date and task._effective_deadline_date < today and task.status.lower() not in ("completed", "done"):
             dl_color = COLORS["error"]
-        
+
         lbl_dl = ctk.CTkLabel(right_info, text=f"Due: {dl_str}", font=FONTS["small"], text_color=dl_color)
         lbl_dl.pack(anchor="e", pady=(0, 4))
         bind_events(lbl_dl)
@@ -587,24 +1036,29 @@ class TaskUpdaterApp(ctk.CTk):
         lbl_status = ctk.CTkLabel(right_info, text=task.status.upper(), font=("Segoe UI", 10), text_color=status_color)
         lbl_status.pack(anchor="e")
         bind_events(lbl_status)
-        
+
         actions_frame = ctk.CTkFrame(inner, fg_color="transparent")
         actions_frame.grid(row=0, column=3, padx=20, pady=16, sticky="e")
 
         has_checklist = bool(getattr(task, 'checklist', None))
-        
-        has_checklist = bool(getattr(task, 'checklist', None))
         combo_values = ["Completed", "Delayed", "Update"] if has_checklist else ["Completed", "Delayed"]
-        
-        status_var = ctk.StringVar(value="Status...")
-        status_combo = ModernComboBox(actions_frame, values=combo_values, 
+
+        # Restore any pending selection from the employee
+        initial_val = self._user_dropdown_selections.get(task.task_id, "Status...")
+        status_var = ctk.StringVar(value=initial_val)
+
+        status_combo = ModernComboBox(actions_frame, values=combo_values,
                                       variable=status_var, width=140, height=32, font=FONTS["small"], dropdown_font=FONTS["small"],
                                       corner_radius=6)
         status_combo.pack(side="left", padx=(0, 8))
-        
+
+        def on_combo_changed(val, t_id=task.task_id):
+            self._user_dropdown_selections[t_id] = val
+        status_combo.configure(command=on_combo_changed)
+
         btn_action = ctk.CTkButton(actions_frame, text="Update", width=90, height=32, font=FONTS["small"], corner_radius=6,
                                    fg_color=COLORS["accent"], text_color="#FFFFFF", hover_color=COLORS["accent_hover"])
-                                   
+
         def handle_action(t=task, c=status_combo, b=btn_action):
             val = c.get()
             if val == "Update":
@@ -613,7 +1067,7 @@ class TaskUpdaterApp(ctk.CTk):
                 return
             elif val and val != "Status...":
                 self.do_inline_update(t, val, b)
-                
+
         btn_action.configure(command=handle_action)
         btn_action.pack(side="left", padx=(0, 8))
 
@@ -622,6 +1076,82 @@ class TaskUpdaterApp(ctk.CTk):
                                  text_color=COLORS["text_main"], hover_color=COLORS["bg"],
                                  command=lambda t=task: self.show_task_details_dialog(t))
         btn_view.pack(side="left")
+
+        row_info = {
+            "row_widget": row,
+            "inner_card": inner,
+            "task": task,
+            "status_combo": status_combo,
+            "status_var": status_var,
+            "btn_action": btn_action,
+            "lbl_status": lbl_status,
+            "lbl_dl": lbl_dl,
+            "lbl_prio": lbl_prio,
+            "lbl_desc": lbl_desc,
+            "has_checklist": has_checklist,
+            "new_badge": new_badge
+        }
+
+        if is_brand_new:
+            self._animate_new_task_row(row, inner, new_badge)
+
+        return row_info
+
+    def _animate_new_task_row(self, row, inner, new_badge):
+        """Animates a newly added task row with height expansion and a luminous highlight fade."""
+        target_height = 80
+        row.grid_propagate(False)
+        row.configure(height=10)
+
+        def step_expand(current_h=10):
+            if not row.winfo_exists():
+                return
+            if current_h < target_height:
+                next_h = current_h + 14
+                row.configure(height=min(next_h, target_height))
+                self.after(16, lambda: step_expand(next_h))
+            else:
+                row.grid_propagate(True)
+
+        self.after(10, step_expand)
+
+        def step_color(step=0, total_steps=22):
+            if not inner.winfo_exists():
+                return
+            factor = step / total_steps
+            eased = 1 - (1 - factor) ** 2  # smooth ease-out
+            bg = _interpolate_color("#EFF6FF", COLORS["card_bg"], eased)
+            border = _interpolate_color("#3B82F6", COLORS["border"], eased)
+            try:
+                inner.configure(fg_color=bg, border_color=border)
+            except Exception:
+                pass
+            if step < total_steps:
+                self.after(45, lambda: step_color(step + 1, total_steps))
+            else:
+                try:
+                    inner.configure(fg_color=COLORS["card_bg"], border_color=COLORS["border"], border_width=1)
+                except Exception:
+                    pass
+
+        self.after(180, step_color)
+
+        if new_badge:
+            def remove_badge():
+                if new_badge.winfo_exists():
+                    new_badge.destroy()
+            self.after(4000, remove_badge)
+
+    def _pulse_card_border(self, inner):
+        """Subtle 700ms pulse border when an existing task is remotely updated."""
+        try:
+            inner.configure(border_color="#3B82F6", border_width=2)
+            def revert():
+                if inner.winfo_exists():
+                    inner.configure(border_color=COLORS["border"], border_width=1)
+            self.after(700, revert)
+        except Exception:
+            pass
 
 
     # ── Task Detail Dialog ───────────────────────────────────────────────
@@ -860,33 +1390,32 @@ class TaskUpdaterApp(ctk.CTk):
 
     # ── Extension Requests Display ───────────────────────────────────────
 
-    def _build_extension_section(self, parent, ext_requests):
-        section = ctk.CTkFrame(parent, fg_color=COLORS["card_bg"],
-                               corner_radius=12, border_width=1, border_color=COLORS["border"])
-        section.pack(fill="both", expand=True)
-
-        hdr = ctk.CTkFrame(section, fg_color="transparent")
-        hdr.pack(fill="x", padx=24, pady=(24, 16))
-        
-        title_frame = ctk.CTkFrame(hdr, fg_color="transparent")
-        title_frame.pack(side="left")
-        ctk.CTkLabel(title_frame, text="My Extension Requests", font=("Segoe UI", 20), text_color=COLORS["text_main"]).pack(anchor="w")
-        ctk.CTkLabel(title_frame, text="Track your deadline change requests", 
-                     font=FONTS["body"], text_color=COLORS["text_dim"]).pack(anchor="w", pady=(2, 0))
-
-        ctk.CTkButton(hdr, text="↻", width=36, font=FONTS["body"], corner_radius=6,
-                      fg_color="transparent", border_width=1, border_color=COLORS["border"], text_color=COLORS["text_main"], hover_color=COLORS["bg"],
-                      height=36, command=self._full_refresh).pack(side="right")
-
-        container = ctk.CTkFrame(section, fg_color="transparent")
-        container.pack(fill="both", expand=True, padx=24, pady=(0, 24))
+    def _update_extension_display(self, ext_requests):
+        """Seamlessly updates extension request cards in place."""
+        current_ext_scroll = None
+        try:
+            current_ext_scroll = self.ext_container._parent_canvas.yview()[0]
+        except Exception:
+            pass
 
         if not ext_requests:
-            ctk.CTkLabel(container, text="No extension requests yet.", font=FONTS["body"], text_color=COLORS["text_dim"]).pack(pady=40)
+            for card in self._ext_rows.values():
+                card["widget"].pack_forget()
+            if hasattr(self, "empty_ext_frame"):
+                self.empty_ext_frame.pack(pady=40)
             return
 
-        for idx, req in enumerate(reversed(ext_requests)):
-            status = req["status"]
+        if hasattr(self, "empty_ext_frame"):
+            self.empty_ext_frame.pack_forget()
+
+        req_list = list(reversed(ext_requests))
+        target_keys = set()
+
+        for idx, req in enumerate(req_list):
+            key = str(req.get("id") or f"{req.get('task_id')}_{req.get('requested_deadline')}")
+            target_keys.add(key)
+
+            status = req.get("status", "Pending")
             if status == "Pending":
                 badge_color, badge_text = COLORS["warning"], "PENDING"
             elif status == "Approved":
@@ -894,37 +1423,74 @@ class TaskUpdaterApp(ctk.CTk):
             else:
                 badge_color, badge_text = COLORS["error"], "REJECTED"
 
-            card = ctk.CTkFrame(container, fg_color="transparent", border_width=1, border_color=COLORS["border"], corner_radius=8)
-            card.pack(fill="x", pady=6)
-            
-            top_row = ctk.CTkFrame(card, fg_color="transparent")
-            top_row.pack(fill="x", padx=16, pady=(16, 8))
-            
-            ctk.CTkLabel(top_row, text=badge_text, font=("Segoe UI", 9), 
-                         text_color="#FFFFFF", fg_color=badge_color, corner_radius=4, 
-                         width=70, height=22).pack(side="left")
-            
-            ctk.CTkLabel(card, text=req["task_id"], font=FONTS["body"], text_color=COLORS["text_main"]).pack(anchor="w", padx=16)
-            
-            desc = req["task_description"]
-            if len(desc) > 40: desc = desc[:40] + "..."
-            ctk.CTkLabel(card, text=desc, font=FONTS["body"], text_color=COLORS["text_dim"]).pack(anchor="w", padx=16, pady=(4, 12))
-            
-            bot_row = ctk.CTkFrame(card, fg_color=COLORS["bg"], corner_radius=0)
-            bot_row.pack(fill="x", padx=1, pady=(0, 1))
-            
+            final_deadline = format_date(req.get("manager_deadline") or req.get("requested_deadline"))
             if status == "Approved":
-                final_deadline = format_date(req.get("manager_deadline") or req["requested_deadline"])
                 dl_lbl = f"New Deadline: {final_deadline}"
             elif status == "Rejected":
-                dl_lbl = f"Unchanged: {format_date(req['current_deadline'])}"
+                dl_lbl = f"Unchanged: {format_date(req.get('current_deadline'))}"
             else:
-                dl_lbl = f"Requested: {format_date(req['requested_deadline'])}"
-                
-            ctk.CTkLabel(bot_row, text=dl_lbl, font=FONTS["body"], text_color=COLORS["text_main"]).pack(anchor="w", padx=16, pady=10)
-            
-            if status != "Pending" and req.get("manager_note"):
-                ctk.CTkLabel(card, text=f"Note: {req['manager_note']}", font=FONTS["small"], text_color=COLORS["text_dim"], wraplength=220).pack(anchor="w", padx=16, pady=(0, 12))
+                dl_lbl = f"Requested: {format_date(req.get('requested_deadline'))}"
+
+            desc = req.get("task_description", "")
+            if len(desc) > 40:
+                desc = desc[:40] + "..."
+
+            note_text = f"Note: {req.get('manager_note')}" if status != "Pending" and req.get("manager_note") else ""
+
+            if key in self._ext_rows:
+                # Update existing card
+                card_info = self._ext_rows[key]
+                card_info["lbl_badge"].configure(text=badge_text, fg_color=badge_color)
+                card_info["lbl_dl"].configure(text=dl_lbl)
+                if note_text:
+                    card_info["lbl_note"].configure(text=note_text)
+                    card_info["lbl_note"].pack(anchor="w", padx=16, pady=(0, 12))
+                else:
+                    card_info["lbl_note"].pack_forget()
+                card_info["widget"].pack(fill="x", pady=6)
+            else:
+                # Create new extension request card
+                card = ctk.CTkFrame(self.ext_container, fg_color="transparent", border_width=1, border_color=COLORS["border"], corner_radius=8)
+                card.pack(fill="x", pady=6)
+
+                top_row = ctk.CTkFrame(card, fg_color="transparent")
+                top_row.pack(fill="x", padx=16, pady=(16, 8))
+
+                lbl_badge = ctk.CTkLabel(top_row, text=badge_text, font=("Segoe UI", 9),
+                                         text_color="#FFFFFF", fg_color=badge_color, corner_radius=4,
+                                         width=70, height=22)
+                lbl_badge.pack(side="left")
+
+                ctk.CTkLabel(card, text=req.get("task_id", ""), font=FONTS["body"], text_color=COLORS["text_main"]).pack(anchor="w", padx=16)
+                ctk.CTkLabel(card, text=desc, font=FONTS["body"], text_color=COLORS["text_dim"]).pack(anchor="w", padx=16, pady=(4, 12))
+
+                bot_row = ctk.CTkFrame(card, fg_color=COLORS["bg"], corner_radius=0)
+                bot_row.pack(fill="x", padx=1, pady=(0, 1))
+
+                lbl_dl = ctk.CTkLabel(bot_row, text=dl_lbl, font=FONTS["body"], text_color=COLORS["text_main"])
+                lbl_dl.pack(anchor="w", padx=16, pady=10)
+
+                lbl_note = ctk.CTkLabel(card, text=note_text, font=FONTS["small"], text_color=COLORS["text_dim"], wraplength=220)
+                if note_text:
+                    lbl_note.pack(anchor="w", padx=16, pady=(0, 12))
+
+                self._ext_rows[key] = {
+                    "widget": card,
+                    "lbl_badge": lbl_badge,
+                    "lbl_dl": lbl_dl,
+                    "lbl_note": lbl_note
+                }
+
+        # Hide cards no longer in data
+        for k in list(self._ext_rows.keys()):
+            if k not in target_keys:
+                self._ext_rows[k]["widget"].pack_forget()
+
+        if current_ext_scroll is not None:
+            try:
+                self.after_idle(lambda: self.ext_container._parent_canvas.yview_moveto(current_ext_scroll))
+            except Exception:
+                pass
 
 
     # ── Add Task Dialog (self-assign only) ───────────────────────────────
@@ -1045,19 +1611,20 @@ class TaskUpdaterApp(ctk.CTk):
                         t.reason = recent_updates[t.task_id]["reason"]
             self.current_tasks = tasks
         except Exception as e:
-            self.current_tasks = []
-            print(f"Failed to fetch tasks: {e}")
+            if not hasattr(self, 'current_tasks') or self.current_tasks is None:
+                self.current_tasks = []
+            print(f"Fetch failed (retaining cached view): {e}")
 
     def _full_refresh(self):
-        """Re-fetch data and rebuild the entire dashboard."""
-        self._build_dashboard_content()
+        """Re-fetch data and update the dashboard in-place seamlessly."""
+        self._trigger_fetch(is_background=False)
 
     def _start_auto_refresh(self):
-        """Auto-refresh every 30s to pick up Admin Dashboard changes quickly."""
+        """Auto-refresh every 30s to pick up changes seamlessly without screen recreation."""
         _AUTO_REFRESH_MS = 30_000
         def _tick():
             try:
-                self._build_dashboard_content(is_background=True)
+                self._trigger_fetch(is_background=True)
             except Exception:
                 pass
             self.after(_AUTO_REFRESH_MS, _tick)
@@ -1128,6 +1695,9 @@ class TaskUpdaterApp(ctk.CTk):
                         "Updated By": "UI Input",
                         "Last Updated": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                     })
+                    self._user_dropdown_selections.pop(task.task_id, None)
+                    if task.task_id in self._task_rows:
+                        self._task_rows[task.task_id]["status_var"].set("Status...")
                     self._full_refresh()
                 try:
                     btn_widget.configure(state="normal")

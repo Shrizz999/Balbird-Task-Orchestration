@@ -225,6 +225,13 @@ class PeopleView(ctk.CTkFrame):
                 lbl.pack(anchor="w", pady=2)
 
     def _select_person(self, name: str):
+        self.current_selected_person = name
+        scroll_y = 0.0
+        try:
+            scroll_y = self.main_area._parent_canvas.yview()[0]
+        except Exception:
+            pass
+
         for p_name, btn in self.person_buttons:
             btn.configure(fg_color=BG_COLOR if p_name == name else "transparent")
 
@@ -291,20 +298,37 @@ class PeopleView(ctk.CTkFrame):
 
         self.so_table.update_data([vars(so) for so in sales_orders])
 
+        def _restore():
+            try:
+                self.main_area._parent_canvas.yview_moveto(scroll_y)
+            except Exception:
+                pass
+        self.after_idle(_restore)
+        self.after(50, _restore)
+
     def refresh_data(self):
-        self.people = self._get_filtered_people()
-        # rebuild sidebar buttons
-        for _, btn in getattr(self, "person_buttons", []):
-            btn.destroy()
-        self.person_buttons = []
-        for person in self.people:
-            btn = ctk.CTkButton(self.sidebar, text=f"{person.name}", fg_color="transparent",
-                                text_color=TEXT_COLOR, hover_color=BG_COLOR, anchor="w",
-                                command=lambda p=person.name: self._select_person(p))
-            btn.pack(fill="x", padx=10, pady=3)
-            self.person_buttons.append((person.name, btn))
-            
-        if self.people:
+        new_people = self._get_filtered_people()
+        new_names = [p.name for p in new_people]
+        cur_names = [name for name, _ in getattr(self, "person_buttons", [])]
+
+        if new_names != cur_names:
+            self.people = new_people
+            for _, btn in getattr(self, "person_buttons", []):
+                btn.destroy()
+            self.person_buttons = []
+            for person in self.people:
+                btn = ctk.CTkButton(self.sidebar, text=f"{person.name}", fg_color="transparent",
+                                    text_color=TEXT_COLOR, hover_color=BG_COLOR, anchor="w",
+                                    command=lambda p=person.name: self._select_person(p))
+                btn.pack(fill="x", padx=10, pady=3)
+                self.person_buttons.append((person.name, btn))
+        else:
+            self.people = new_people
+
+        selected = getattr(self, "current_selected_person", None)
+        if selected and any(p.name == selected for p in self.people):
+            self._select_person(selected)
+        elif self.people:
             self._select_person(self.people[0].name)
         else:
             self._clear_person_view()
