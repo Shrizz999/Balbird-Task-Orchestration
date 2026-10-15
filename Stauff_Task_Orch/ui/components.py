@@ -65,8 +65,12 @@ class KPICard(ctk.CTkFrame):
         super().__init__(master, fg_color=CARD_BG, border_width=1,
                          border_color=BORDER_COLOR, corner_radius=6, **kwargs)
 
+        self.top_edge = ctk.CTkFrame(self, fg_color=ACCENT_COLOR, height=4, corner_radius=2)
+        self.top_edge.pack(fill="x", side="top", padx=0, pady=0)
+        self.top_edge.pack_propagate(False)
+
         self.lbl_title = ctk.CTkLabel(self, text=title, font=FONT_BOLD, text_color=TEXT_MUTED)
-        self.lbl_title.pack(anchor="w", padx=15, pady=(12, 0))
+        self.lbl_title.pack(anchor="w", padx=15, pady=(10, 0))
 
         self.lbl_value = ctk.CTkLabel(self, text=value, font=FONT_H1, text_color=TEXT_COLOR)
         self.lbl_value.pack(anchor="w", padx=15, pady=(2, 0))
@@ -80,6 +84,7 @@ class KPICard(ctk.CTkFrame):
         if clickable and command:
             self.configure(cursor="hand2")
             self.bind("<Button-1>", lambda e: command())
+            self.top_edge.bind("<Button-1>", lambda e: command())
             self.lbl_title.bind("<Button-1>", lambda e: command())
             self.lbl_value.bind("<Button-1>", lambda e: command())
             if hasattr(self, 'lbl_sub'):
@@ -89,95 +94,226 @@ class KPICard(ctk.CTkFrame):
         self.lbl_value.configure(text=value)
 
 
+# Configure matplotlib global modern typography and antialiasing
+matplotlib.rcParams['font.sans-serif'] = ['Segoe UI', 'Inter', 'Helvetica Neue', 'Arial', 'sans-serif']
+matplotlib.rcParams['font.family'] = 'sans-serif'
+matplotlib.rcParams['axes.edgecolor'] = '#e2e8f0'
+matplotlib.rcParams['axes.linewidth'] = 0.8
+matplotlib.rcParams['figure.autolayout'] = False
+
+
 class ChartCard(ctk.CTkFrame):
-    """Embeds a matplotlib chart inside a CustomTkinter card."""
+    """Embeds a modern, sleek matplotlib chart inside a CustomTkinter card."""
 
     def __init__(self, master, title: str, fig_width: float = 4.0, fig_height: float = 2.8, **kwargs):
         super().__init__(master, fg_color=CARD_BG, border_width=1,
-                         border_color=BORDER_COLOR, corner_radius=6, **kwargs)
+                         border_color=BORDER_COLOR, corner_radius=8, **kwargs)
         self.title = title
 
         self.lbl_title = ctk.CTkLabel(self, text=title, font=FONT_BOLD, text_color=TEXT_COLOR)
-        self.lbl_title.pack(anchor="w", padx=15, pady=(12, 0))
+        self.lbl_title.pack(anchor="w", padx=16, pady=(12, 2))
 
-        self.fig = Figure(figsize=(fig_width, fig_height), dpi=96, facecolor=CARD_BG)
+        self.fig = Figure(figsize=(fig_width, fig_height), dpi=100, facecolor=CARD_BG)
         self.ax = self.fig.add_subplot(111)
         self._style_ax()
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
-        self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=(5, 10))
+        self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=8, pady=(2, 8))
 
     def _style_ax(self):
         self.ax.set_facecolor(CARD_BG)
-        self.ax.tick_params(colors=TEXT_MUTED, labelsize=8)
+        self.ax.tick_params(colors=TEXT_MUTED, labelsize=8, length=0, pad=4)
         self.ax.spines["top"].set_visible(False)
         self.ax.spines["right"].set_visible(False)
-        self.ax.spines["left"].set_color(BORDER_COLOR)
+        self.ax.spines["left"].set_visible(False)
         self.ax.spines["bottom"].set_color(BORDER_COLOR)
+        self.ax.spines["bottom"].set_linewidth(1.0)
+        self.ax.grid(axis='y', color='#f1f5f9', linestyle='-', linewidth=0.8, alpha=0.9)
+        self.ax.set_axisbelow(True)
 
     def clear(self):
         self.ax.clear()
         self._style_ax()
 
     def draw(self):
-        self.fig.tight_layout(pad=1.5)
+        try:
+            self.fig.tight_layout(pad=1.2)
+        except Exception:
+            pass
         self.canvas.draw()
 
     def bar_chart(self, labels: List[str], values: List[float], color: str = None, horizontal: bool = False):
         self.clear()
+        if not labels or not values:
+            self.ax.text(0.5, 0.5, "No data available", ha="center", va="center",
+                         fontsize=9, color=TEXT_MUTED, transform=self.ax.transAxes)
+            self.draw()
+            return
+
         colors = color if isinstance(color, list) else [color or ACCENT_COLOR] * len(labels)
         if horizontal:
-            self.ax.barh(labels, values, color=colors, height=0.6)
+            self.ax.grid(axis='x', color='#f1f5f9', linestyle='-', linewidth=0.8, alpha=0.9)
+            self.ax.yaxis.grid(False)
+            self.ax.spines["bottom"].set_visible(False)
+            self.ax.spines["left"].set_color(BORDER_COLOR)
+            bars = self.ax.barh(labels, values, color=colors, height=0.52, edgecolor='none')
             self.ax.invert_yaxis()
+            try:
+                self.ax.bar_label(bars, padding=4, color=TEXT_MUTED, fontsize=8, fontweight='bold')
+            except Exception:
+                pass
+            max_v = max(values) if values else 1
+            self.ax.set_xlim(0, max_v * 1.2 if max_v > 0 else 1)
         else:
-            self.ax.bar(labels, values, color=colors, width=0.6)
+            self.ax.grid(axis='y', color='#f1f5f9', linestyle='-', linewidth=0.8, alpha=0.9)
+            self.ax.xaxis.grid(False)
+            bars = self.ax.bar(labels, values, color=colors, width=0.52, edgecolor='none')
+            try:
+                self.ax.bar_label(bars, padding=3, color=TEXT_MUTED, fontsize=8, fontweight='bold')
+            except Exception:
+                pass
+            max_v = max(values) if values else 1
+            self.ax.set_ylim(0, max_v * 1.2 if max_v > 0 else 1)
+            if any(len(str(lbl)) > 7 for lbl in labels):
+                self.ax.tick_params(axis='x', rotation=22)
         self.draw()
 
     def pie_chart(self, labels: List[str], values: List[float], colors: List[str] = None):
         self.clear()
+        if not values or sum(values) == 0:
+            self.ax.text(0.5, 0.5, "No data available", ha="center", va="center",
+                         fontsize=9, color=TEXT_MUTED, transform=self.ax.transAxes)
+            self.draw()
+            return
+
         use_colors = colors or CHART_COLORS[:len(labels)]
+        total = sum(values)
+
+        # Sleek donut chart
         wedges, texts, autotexts = self.ax.pie(
-            values, labels=labels, colors=use_colors,
-            autopct='%1.0f%%', startangle=90, textprops={"fontsize": 8, "color": TEXT_COLOR}
+            values,
+            labels=None,
+            colors=use_colors,
+            autopct=lambda pct: f"{pct:.0f}%" if pct >= 6 else "",
+            pctdistance=0.76,
+            startangle=90,
+            wedgeprops=dict(width=0.40, edgecolor='#ffffff', linewidth=2.5)
         )
         for t in autotexts:
-            t.set_fontsize(7)
-            t.set_color("white")
+            t.set_fontsize(7.5)
+            t.set_fontweight("bold")
+            t.set_color("#ffffff")
+
+        # Center summary
+        self.ax.text(0, 0.08, f"{int(total)}", ha="center", va="center",
+                     fontsize=13, fontweight="bold", color=TEXT_COLOR)
+        self.ax.text(0, -0.15, "TOTAL", ha="center", va="center",
+                     fontsize=6.5, fontweight="bold", color=TEXT_MUTED)
+
+        # Modern clean legend
+        legend_labels = [f"{lbl} ({int(val)})" for lbl, val in zip(labels, values)]
+        self.ax.legend(
+            wedges, legend_labels,
+            loc="center left",
+            bbox_to_anchor=(0.95, 0.5),
+            fontsize=7.5,
+            frameon=False,
+            labelcolor=TEXT_COLOR
+        )
         self.ax.set_aspect("equal")
         self.draw()
 
     def line_chart(self, x_labels: List[str], datasets: Dict[str, List[float]]):
         self.clear()
+        if not x_labels or not datasets:
+            self.ax.text(0.5, 0.5, "No data available", ha="center", va="center",
+                         fontsize=9, color=TEXT_MUTED, transform=self.ax.transAxes)
+            self.draw()
+            return
+
+        max_v = 0
         for idx, (label, values) in enumerate(datasets.items()):
             c = CHART_COLORS[idx % len(CHART_COLORS)]
-            self.ax.plot(x_labels[:len(values)], values, marker="o", markersize=4, linewidth=1.5, label=label, color=c)
-        self.ax.legend(fontsize=7, frameon=False, labelcolor=TEXT_MUTED)
-        self.ax.tick_params(axis='x', rotation=30)
+            x_vals = range(len(values))
+            self.ax.plot(
+                x_vals, values,
+                marker="o", markersize=4.5, markerfacecolor="#ffffff",
+                markeredgecolor=c, markeredgewidth=1.8,
+                linewidth=2.2, label=label, color=c, zorder=3
+            )
+            self.ax.fill_between(x_vals, values, color=c, alpha=0.08, zorder=2)
+            if values:
+                max_v = max(max_v, max(values))
+
+        self.ax.set_xticks(range(len(x_labels)))
+        self.ax.set_xticklabels(x_labels, fontsize=7.5, color=TEXT_MUTED)
+        self.ax.set_ylim(0, max_v * 1.2 if max_v > 0 else 1)
+        self.ax.legend(fontsize=7.5, frameon=False, labelcolor=TEXT_COLOR, loc="upper left")
+        if len(x_labels) > 6 or any(len(str(lbl)) > 6 for lbl in x_labels):
+            self.ax.tick_params(axis='x', rotation=25)
         self.draw()
 
     def stacked_bar_chart(self, labels: List[str], datasets: Dict[str, List[float]], colors: List[str] = None):
-        """Stacked vertical bar chart. datasets = {"Pending": [3,2,1], "Completed": [1,4,2]}"""
+        """Stacked vertical bar chart with modern total labels and clean spacing."""
         self.clear()
+        if not labels or not datasets:
+            self.ax.text(0.5, 0.5, "No data available", ha="center", va="center",
+                         fontsize=9, color=TEXT_MUTED, transform=self.ax.transAxes)
+            self.draw()
+            return
+
         use_colors = colors or CHART_COLORS
         bottom = [0] * len(labels)
         for idx, (series_name, values) in enumerate(datasets.items()):
             c = use_colors[idx % len(use_colors)]
-            self.ax.bar(labels, values, bottom=bottom, color=c, width=0.55, label=series_name)
+            self.ax.bar(labels, values, bottom=bottom, color=c, width=0.52,
+                        edgecolor='none', label=series_name)
             bottom = [b + v for b, v in zip(bottom, values)]
-        self.ax.legend(fontsize=7, frameon=False, labelcolor=TEXT_MUTED, loc="upper right")
+
+        for i, total_val in enumerate(bottom):
+            if total_val > 0:
+                self.ax.text(i, total_val + 0.3, str(int(total_val)),
+                             ha="center", va="bottom", fontsize=8,
+                             fontweight="bold", color=TEXT_MUTED)
+
+        max_b = max(bottom) if bottom else 1
+        self.ax.set_ylim(0, max_b * 1.2 if max_b > 0 else 1)
+        self.ax.legend(fontsize=7.5, frameon=False, labelcolor=TEXT_COLOR, loc="upper right")
+        if any(len(str(lbl)) > 6 for lbl in labels):
+            self.ax.tick_params(axis='x', rotation=22)
         self.draw()
 
     def horizontal_stacked_bar_chart(self, labels: List[str], datasets: Dict[str, List[float]], colors: List[str] = None):
-        """Stacked horizontal bar chart."""
+        """Stacked horizontal bar chart with modern clean styling."""
         self.clear()
+        if not labels or not datasets:
+            self.ax.text(0.5, 0.5, "No data available", ha="center", va="center",
+                         fontsize=9, color=TEXT_MUTED, transform=self.ax.transAxes)
+            self.draw()
+            return
+
+        self.ax.grid(axis='x', color='#f1f5f9', linestyle='-', linewidth=0.8, alpha=0.9)
+        self.ax.yaxis.grid(False)
+        self.ax.spines["bottom"].set_visible(False)
+        self.ax.spines["left"].set_color(BORDER_COLOR)
         use_colors = colors or CHART_COLORS
         left = [0] * len(labels)
         for idx, (series_name, values) in enumerate(datasets.items()):
             c = use_colors[idx % len(use_colors)]
-            self.ax.barh(labels, values, left=left, color=c, height=0.55, label=series_name)
+            self.ax.barh(labels, values, left=left, color=c, height=0.52,
+                         edgecolor='none', label=series_name)
             left = [l + v for l, v in zip(left, values)]
+
+        for i, total_val in enumerate(left):
+            if total_val > 0:
+                self.ax.text(total_val + 0.2, i, str(int(total_val)),
+                             ha="left", va="center", fontsize=8,
+                             fontweight="bold", color=TEXT_MUTED)
+
+        max_l = max(left) if left else 1
+        self.ax.set_xlim(0, max_l * 1.2 if max_l > 0 else 1)
         self.ax.invert_yaxis()
-        self.ax.legend(fontsize=7, frameon=False, labelcolor=TEXT_MUTED, loc="lower right")
+        self.ax.legend(fontsize=7.5, frameon=False, labelcolor=TEXT_COLOR, loc="lower right")
         self.draw()
 
 

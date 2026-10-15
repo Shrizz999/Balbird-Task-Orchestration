@@ -30,7 +30,8 @@ import tkinter as tk
 from tkinter import messagebox, filedialog
 import threading
 
-from config import COLORS, FONTS, ALL_EMPLOYEES, ALL_DEPARTMENTS, DEPARTMENTS
+import config
+from config import COLORS, FONTS, ALL_EMPLOYEES, ALL_DEPARTMENTS, DEPARTMENTS, SHOW_MEETING_TRANSCRIPTS
 from services.n8n_client import N8nClient
 from services.supabase_client import SupabaseClient
 from tkcalendar import DateEntry
@@ -516,13 +517,14 @@ class TaskAssignmentView(ctk.CTkFrame):
         self.content = ctk.CTkFrame(self, fg_color="transparent")
         self.content.pack(fill="both", expand=True)
 
-        # Define sub-tabs
+        # Define sub-tabs (Meeting Updates / Transcript hidden when SHOW_MEETING_TRANSCRIPTS is False)
         self.sub_tabs = [
             ("Daily Goals", DailyGoalsSubFrame),
             ("Department Goals", DepartmentGoalsSubFrame),
-            ("Meeting Updates", MeetingUpdatesSubFrame),
-            ("Monthly Task Updater", MonthlyTaskUpdaterSubFrame),
         ]
+        if getattr(config, "SHOW_MEETING_TRANSCRIPTS", False):
+            self.sub_tabs.append(("Meeting Updates", MeetingUpdatesSubFrame))
+        self.sub_tabs.append(("Monthly Task Updater", MonthlyTaskUpdaterSubFrame))
 
         self.tab_buttons = {}
         self.sub_frames = {}

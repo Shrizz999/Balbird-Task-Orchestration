@@ -41,6 +41,7 @@ hiddenimports = [
     'ui.extension_requests',
     'ui.components',
     'ui.add_employee',
+    'ui.departments',
     'tkcalendar',
     'babel',
     'babel.numbers',

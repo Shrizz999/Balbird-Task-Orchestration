@@ -2,8 +2,10 @@ import os
 import sys
 from PIL import Image
 import customtkinter as ctk
+import config
 from data.repository import DataRepository, GoogleSheetRepository, SupabaseRepository, TEAM_STRUCTURE
 from .dashboard import DashboardView
+from .departments import DepartmentsView
 from .tasks import TasksView
 from .goals import GoalsView
 from .updates import UpdatesView
@@ -124,13 +126,19 @@ class MainWindow(ctk.CTk):
         self.combo_dept.grid(row=2, column=0, padx=15, pady=(5, 15), sticky="ew")
 
         # Navigation
+        work_items = [
+            ("All Tasks", TasksView),
+            ("Goals", GoalsView),
+        ]
+        if getattr(config, "SHOW_DAILY_UPDATES", False):
+            work_items.append(("Daily Updates", UpdatesView))
+
         nav_items = [
-            ("Overview", [("Dashboard", DashboardView)]),
-            ("Work Management", [
-                ("All Tasks", TasksView),
-                ("Goals", GoalsView),
-                ("Daily Updates", UpdatesView)
+            ("Overview", [
+                ("Dashboard", DashboardView),
+                ("Department Hub", DepartmentsView),
             ]),
+            ("Work Management", work_items),
             ("People", [
                 ("Team Profiles", PeopleView),
                 ("Analytics", AnalyticsView),
@@ -178,6 +186,9 @@ class MainWindow(ctk.CTk):
         self._apply_refresh()
 
     def show_view(self, name: str):
+        if name not in self.views:
+            return
+
         for btn_name, btn in self.nav_buttons.items():
             btn.configure(fg_color=BG_COLOR if btn_name == name else "transparent")
 

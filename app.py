@@ -1,5 +1,6 @@
 import customtkinter as ctk
-from config import COLORS, FONTS
+import config
+from config import COLORS, FONTS, SHOW_MEETING_TRANSCRIPTS
 from ui.daily_goals import DailyGoalsFrame
 from ui.department_goals import DepartmentGoalsFrame
 from ui.tasks_updates import TasksUpdatesFrame
@@ -35,9 +36,10 @@ class StauffApp(ctk.CTk):
         nav_items = [
             ("Daily Goals", "DailyGoals"),
             ("Department Goals", "DepartmentGoals"),
-            ("Meeting Updates", "TasksUpdates"),
-            ("Monthly Task Updater", "MonthlyTasksUpdates")
         ]
+        if getattr(config, "SHOW_MEETING_TRANSCRIPTS", False):
+            nav_items.append(("Meeting Updates", "TasksUpdates"))
+        nav_items.append(("Monthly Task Updater", "MonthlyTasksUpdates"))
 
         for text, frame_name in nav_items:
             btn = ctk.CTkButton(
@@ -62,7 +64,8 @@ class StauffApp(ctk.CTk):
         # Initialize all frames
         self.frames["DailyGoals"] = DailyGoalsFrame(self.main_container)
         self.frames["DepartmentGoals"] = DepartmentGoalsFrame(self.main_container)
-        self.frames["TasksUpdates"] = TasksUpdatesFrame(self.main_container)
+        if getattr(config, "SHOW_MEETING_TRANSCRIPTS", False):
+            self.frames["TasksUpdates"] = TasksUpdatesFrame(self.main_container)
         self.frames["MonthlyTasksUpdates"] = MonthlyTasksUpdatesFrame(self.main_container)
         
         # Hide all initially

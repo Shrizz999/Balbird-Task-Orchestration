@@ -6,6 +6,7 @@ from .components import (KPICard, ChartCard, BG_COLOR, TEXT_COLOR,
                          FONT_H1, FONT_TITLE, CARD_BG, BORDER_COLOR, TEXT_MUTED,
                          CHART_COLORS, FONT_MAIN, FONT_BOLD, FONT_SMALL, TimelineTracker)
 from data.repository import DataRepository
+import config
 
 
 # Status colours for charts
@@ -81,18 +82,8 @@ class DashboardView(ctk.CTkFrame):
 
         # Charts row 3
         self.charts_row3 = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        self.charts_row3.pack(fill="x", padx=20, pady=(0, 15))
+        self.charts_row3.pack(fill="x", padx=20, pady=(0, 20))
         self.charts_row3.grid_columnconfigure((0, 1), weight=1)
-
-        # Charts row 4
-        self.charts_row4 = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        self.charts_row4.pack(fill="x", padx=20, pady=(0, 15))
-        self.charts_row4.grid_columnconfigure((0, 1), weight=1)
-
-        # Charts row 5
-        self.charts_row5 = ctk.CTkFrame(self.scroll, fg_color="transparent")
-        self.charts_row5.pack(fill="x", padx=20, pady=(0, 20))
-        self.charts_row5.grid_columnconfigure((0, 1), weight=1)
 
         self._last_data_sig = None
         self._last_status_text_prefix = ""
@@ -150,7 +141,7 @@ class DashboardView(ctk.CTkFrame):
         # Clear all frames
         for frame in [getattr(self, "risk_summary_frame", None), self.kpi_frame, getattr(self, "charts_row_bottleneck", None),
                       getattr(self, "attention_row", None), self.charts_row1,
-                      self.charts_row2, self.charts_row3, self.charts_row4, self.charts_row5]:
+                      self.charts_row2, self.charts_row3]:
             if frame:
                 self._clear_frame(frame)
 
@@ -319,28 +310,10 @@ class DashboardView(ctk.CTkFrame):
             
             ctk.CTkFrame(tbl_frame, height=1, fg_color=BORDER_COLOR).grid(row=row+1, column=0, columnspan=5, sticky="ew")
 
-        # ── Chart Row 1: Status overview ──
-        # Task status breakdown (stacked per person)
-        chart_status = ChartCard(self.charts_row1, "Task Status by Person", fig_width=5, fig_height=2.8)
-        chart_status.grid(row=0, column=0, padx=8, pady=5, sticky="nsew")
-        person_names = sorted(set(t.person for t in tasks if t.person))
-        if person_names:
-            status_types = ["Pending", "Completed", "Delayed"]
-            status_data = {}
-            for st in status_types:
-                status_data[st] = []
-                for p in person_names:
-                    count = sum(1 for t in tasks if t.person == p and t.status.strip().capitalize() == st)
-                    status_data[st].append(count)
-            # Also count "Done" as "Completed"
-            for i, p in enumerate(person_names):
-                status_data["Completed"][i] += sum(1 for t in tasks if t.person == p and t.status.strip().lower() in ("done", "update"))
-            chart_status.stacked_bar_chart(person_names, status_data,
-                                           colors=[STATUS_COLORS["Pending"], STATUS_COLORS["Completed"], STATUS_COLORS["Delayed"]])
-
-        # Overall task status pie
+        # ── Chart Row 1: Task Status & Priority ──
+        # Overall task status donut
         chart_pie = ChartCard(self.charts_row1, "Overall Task Status", fig_width=5, fig_height=2.8)
-        chart_pie.grid(row=0, column=1, padx=8, pady=5, sticky="nsew")
+        chart_pie.grid(row=0, column=0, padx=8, pady=5, sticky="nsew")
         if task_status:
             merged = defaultdict(int)
             for st, cnt in task_status.items():
@@ -348,27 +321,23 @@ class DashboardView(ctk.CTkFrame):
                     merged["Completed"] += cnt
                 else:
                     merged[st] += cnt
-            labels = list(merged.keys())
-            vals = list(merged.values())
-            pie_colors = [STATUS_COLORS.get(l, CHART_COLORS[i % len(CHART_COLORS)]) for i, l in enumerate(labels)]
+            labels = []
+            vals = []
+            pie_colors = []
+            for st_name in ["Completed", "Pending", "Delayed"]:
+                if st_name in merged:
+                    labels.append(st_name)
+                    vals.append(merged[st_name])
+                    pie_colors.append(STATUS_COLORS[st_name])
+            for st_name, cnt in merged.items():
+                if st_name not in ["Completed", "Pending", "Delayed"]:
+                    labels.append(st_name)
+                    vals.append(cnt)
+                    pie_colors.append(CHART_COLORS[len(labels) % len(CHART_COLORS)])
             chart_pie.pie_chart(labels, vals, colors=pie_colors)
 
-        # ── Chart Row 2: Deadlines & Overdue ──
-        # Overdue per person
-        chart_overdue = ChartCard(self.charts_row2, "Overdue Tasks by Person", fig_width=5, fig_height=2.8)
-        chart_overdue.grid(row=0, column=0, padx=8, pady=5, sticky="nsew")
-        overdue_per_person = Counter(t.person for t in tasks if _is_overdue(t))
-        if overdue_per_person:
-            labels = list(overdue_per_person.keys())
-            vals = list(overdue_per_person.values())
-            chart_overdue.bar_chart(labels, vals, color=["#ef4444"] * len(labels))
-        else:
-            chart_overdue.ax.text(0.5, 0.5, "No overdue tasks! 🎉", transform=chart_overdue.ax.transAxes,
-                                  ha="center", va="center", fontsize=12, color="#10b981")
-            chart_overdue.draw()
-
-        # Priority distribution
-        chart_priority = ChartCard(self.charts_row2, "Task Priority Distribution", fig_width=5, fig_height=2.8)
+        # Priority distribution donut
+        chart_priority = ChartCard(self.charts_row1, "Task Priority Distribution", fig_width=5, fig_height=2.8)
         chart_priority.grid(row=0, column=1, padx=8, pady=5, sticky="nsew")
         priority_counts = Counter(t.priority.strip().capitalize() if t.priority.strip() else "Normal" for t in tasks)
         if priority_counts:
@@ -380,79 +349,84 @@ class DashboardView(ctk.CTkFrame):
             colors = [priority_colors.get(l, CHART_COLORS[0]) for l in labels]
             chart_priority.pie_chart(labels, vals, colors=colors)
 
-        # ── Chart Row 3: Goal insights ──
-        # Goal status per person (stacked)
-        chart_goal_status = ChartCard(self.charts_row3, "Goal Status by Person", fig_width=5, fig_height=2.8)
-        chart_goal_status.grid(row=0, column=0, padx=8, pady=5, sticky="nsew")
-        goal_persons = sorted(set(g.person for g in goals if g.person))
-        if goal_persons:
-            goal_status_types = ["Pending", "Completed", "Delayed"]
-            goal_data = {}
-            for st in goal_status_types:
-                goal_data[st] = []
-                for p in goal_persons:
-                    count = sum(1 for g in goals if g.person == p and g.status.strip().capitalize() == st)
-                    goal_data[st].append(count)
-            for i, p in enumerate(goal_persons):
-                goal_data["Completed"][i] += sum(1 for g in goals if g.person == p and g.status.strip().lower() in ("done", "update"))
-            chart_goal_status.stacked_bar_chart(goal_persons, goal_data,
-                                                 colors=[STATUS_COLORS["Pending"], STATUS_COLORS["Completed"], STATUS_COLORS["Delayed"]])
+        # ── Chart Row 2: Strategic Goals & Deadline Compliance ──
+        # Goals by timeframe & status donut
+        chart_goal_dept = ChartCard(self.charts_row2, "Strategic Goals Breakdown", fig_width=5, fig_height=2.8)
+        chart_goal_dept.grid(row=0, column=0, padx=8, pady=5, sticky="nsew")
+        timeframe_counts = Counter(g.timeframe.strip().capitalize() if getattr(g, 'timeframe', '') else "Other" for g in goals)
+        if timeframe_counts:
+            tf_labels = list(timeframe_counts.keys())
+            tf_vals = [timeframe_counts[l] for l in tf_labels]
+            tf_colors = ["#6366f1", "#0ea5e9", "#f59e0b", "#10b981"][:len(tf_labels)]
+            chart_goal_dept.pie_chart(tf_labels, tf_vals, colors=tf_colors)
+        else:
+            dept_goal_counts = Counter(g.department for g in all_goals if g.department)
+            if dept_goal_counts:
+                chart_goal_dept.pie_chart(list(dept_goal_counts.keys()), list(dept_goal_counts.values()))
 
-        # Goals per department
-        chart_goal_dept = ChartCard(self.charts_row3, "Goals per Department", fig_width=5, fig_height=2.8)
-        chart_goal_dept.grid(row=0, column=1, padx=8, pady=5, sticky="nsew")
-        dept_goal_counts = Counter(g.department for g in all_goals if g.department)
-        if dept_goal_counts:
-            chart_goal_dept.pie_chart(list(dept_goal_counts.keys()), list(dept_goal_counts.values()))
+        # Company-wide Deadline Health & Compliance (Modern Donut)
+        chart_dl = ChartCard(self.charts_row2, "Deadline Health & Compliance", fig_width=5, fig_height=2.8)
+        chart_dl.grid(row=0, column=1, padx=8, pady=5, sticky="nsew")
+        comp_completed = completed_tasks
+        comp_overdue = overdue_tasks + delayed_tasks
+        comp_on_track = 0
+        comp_no_dl = 0
+        for t in tasks:
+            if t.status.strip().lower() in ("completed", "done", "update"):
+                continue
+            if not getattr(t, 'due_date', '').strip():
+                comp_no_dl += 1
+            elif not _is_overdue(t) and t.status.strip().lower() != "delayed":
+                comp_on_track += 1
 
-        # ── Chart Row 4: Time series ──
-        # Task activity over time
-        chart_timeline = ChartCard(self.charts_row4, "Task Activity Over Time", fig_width=5, fig_height=2.8)
-        chart_timeline.grid(row=0, column=0, padx=8, pady=5, sticky="nsew")
+        compliance_labels = ["Completed", "On Track", "Overdue / Delayed", "No Deadline"]
+        compliance_vals = [comp_completed, comp_on_track, comp_overdue, comp_no_dl]
+        compliance_colors = ["#10b981", "#0ea5e9", "#ef4444", "#94a3b8"]
+        filtered = [(l, v, c) for l, v, c in zip(compliance_labels, compliance_vals, compliance_colors) if v > 0]
+        if filtered:
+            chart_dl.pie_chart([f[0] for f in filtered], [f[1] for f in filtered], colors=[f[2] for f in filtered])
+        else:
+            chart_dl.ax.text(0.5, 0.5, "No task data", ha="center", va="center", color=TEXT_MUTED, transform=chart_dl.ax.transAxes)
+            chart_dl.draw()
+
+        # ── Chart Row 3: Activity Trends & Daily Updates Over Time ──
+        show_updates = getattr(config, "SHOW_DAILY_UPDATES", False)
+        # Task activity over time (Smooth area line chart)
+        chart_timeline = ChartCard(self.charts_row3, "Task Creation Trend", fig_width=5 if show_updates else 10, fig_height=2.8)
+        if show_updates:
+            chart_timeline.grid(row=0, column=0, padx=8, pady=5, sticky="nsew")
+        else:
+            chart_timeline.grid(row=0, column=0, columnspan=2, padx=8, pady=5, sticky="nsew")
         date_task = defaultdict(int)
         for t in tasks:
-            date_task[t.date] += 1
+            if getattr(t, 'date', '').strip():
+                date_task[t.date.strip()] += 1
         if date_task:
-            sorted_dates = sorted(date_task.keys())
-            chart_timeline.line_chart(sorted_dates, {"Tasks": [date_task[d] for d in sorted_dates]})
+            sorted_dates = sorted(date_task.keys())[-14:] # Show recent 14 active days
+            chart_timeline.line_chart(sorted_dates, {"Tasks Created": [date_task[d] for d in sorted_dates]})
+        else:
+            chart_timeline.ax.text(0.5, 0.5, "No task activity recorded", ha="center", va="center", color=TEXT_MUTED, transform=chart_timeline.ax.transAxes)
+            chart_timeline.draw()
 
-        # Updates over time
-        chart_updates = ChartCard(self.charts_row4, "Update Activity Over Time", fig_width=5, fig_height=2.8)
-        chart_updates.grid(row=0, column=1, padx=8, pady=5, sticky="nsew")
-        date_update = defaultdict(int)
-        for u in updates:
-            date_update[u.date] += 1
-        if date_update:
-            sorted_dates = sorted(date_update.keys())
-            chart_updates.line_chart(sorted_dates, {"Updates": [date_update[d] for d in sorted_dates]})
-
-        # ── Chart Row 5: Workload & Source ──
-        # Workload heatmap (tasks per person stacked by source)
-        chart_source = ChartCard(self.charts_row5, "Tasks by Source", fig_width=5, fig_height=2.8)
-        chart_source.grid(row=0, column=0, padx=8, pady=5, sticky="nsew")
-        source_counts = Counter(t.source.strip() if t.source.strip() else "Unknown" for t in tasks)
-        if source_counts:
-            labels = list(source_counts.keys())
-            vals = list(source_counts.values())
-            chart_source.bar_chart(labels, vals, color=CHART_COLORS[:len(labels)])
-
-        # Deadline compliance: tasks with vs without deadlines per person
-        chart_dl = ChartCard(self.charts_row5, "Deadline Coverage by Person", fig_width=5, fig_height=2.8)
-        chart_dl.grid(row=0, column=1, padx=8, pady=5, sticky="nsew")
-        if person_names:
-            with_dl = []
-            without_dl = []
-            for p in person_names:
-                p_tasks = [t for t in tasks if t.person == p]
-                with_dl.append(sum(1 for t in p_tasks if t.due_date.strip()))
-                without_dl.append(sum(1 for t in p_tasks if not t.due_date.strip()))
-            chart_dl.stacked_bar_chart(person_names,
-                                        {"With Deadline": with_dl, "No Deadline": without_dl},
-                                        colors=["#10b981", "#e2e8f0"])
+        if show_updates:
+            # Updates over time (Smooth area line chart)
+            chart_updates = ChartCard(self.charts_row3, "Daily Updates Activity", fig_width=5, fig_height=2.8)
+            chart_updates.grid(row=0, column=1, padx=8, pady=5, sticky="nsew")
+            date_update = defaultdict(int)
+            for u in updates:
+                if getattr(u, 'date', '').strip():
+                    date_update[u.date.strip()] += 1
+            if date_update:
+                sorted_dates = sorted(date_update.keys())[-14:] # Show recent 14 active days
+                chart_updates.line_chart(sorted_dates, {"Updates Submitted": [date_update[d] for d in sorted_dates]})
+            else:
+                chart_updates.ax.text(0.5, 0.5, "No update activity recorded", ha="center", va="center", color=TEXT_MUTED, transform=chart_updates.ax.transAxes)
+                chart_updates.draw()
 
         # Status bar text
+        updates_status_str = f" · {total_updates} updates" if show_updates else ""
         self._last_status_text_prefix = (
-            f"📊 {total_tasks} tasks · {total_goals} goals · {total_updates} updates · "
+            f"📊 {total_tasks} tasks · {total_goals} goals{updates_status_str} · "
             f"{completed_tasks} completed · {overdue_tasks} overdue"
         )
         self.lbl_status.configure(

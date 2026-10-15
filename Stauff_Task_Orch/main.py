@@ -5,11 +5,14 @@ import threading
 import traceback
 from datetime import datetime
 
-# Ensure project root is on path for config import
+# Ensure project root and package directory are on path
+_this_dir = os.path.abspath(os.path.dirname(__file__))
 if getattr(sys, 'frozen', False):
     _project_root = os.path.dirname(sys.executable)
 else:
-    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    _project_root = os.path.abspath(os.path.join(_this_dir, ".."))
+if _this_dir not in sys.path:
+    sys.path.insert(0, _this_dir)
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
@@ -65,7 +68,10 @@ def resolve_resource_path(filename):
             return c
     return filename
 
-from config import SUPABASE_URL, SUPABASE_KEY
+from config import SUPABASE_URL, SUPABASE_KEY, SHOW_MEETING_TRANSCRIPTS, SHOW_DAILY_UPDATES
+# UI Feature Flags: Controls Meeting Transcript & Daily Updates visibility in Admin Dashboard.
+# To bring them back, set SHOW_MEETING_TRANSCRIPTS = True and SHOW_DAILY_UPDATES = True in config.py
+# (or override here: config.SHOW_MEETING_TRANSCRIPTS = True; config.SHOW_DAILY_UPDATES = True)
 from data.repository import SupabaseRepository
 from ui.main_window import MainWindow
 import customtkinter as ctk

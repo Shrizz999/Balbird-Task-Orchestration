@@ -4,6 +4,7 @@ from .components import (KPICard, ChartCard, BG_COLOR, TEXT_COLOR,
                          FONT_H1, FONT_TITLE, CARD_BG, BORDER_COLOR,
                          CHART_COLORS, TEXT_MUTED)
 from data.repository import DataRepository
+import config
 
 
 class AnalyticsView(ctk.CTkFrame):
@@ -63,12 +64,14 @@ class AnalyticsView(ctk.CTkFrame):
         departments = sorted(set(p.department for p in people))
 
         # --- Top Level Charts ---
+        show_updates = getattr(config, "SHOW_DAILY_UPDATES", False)
         top_charts = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         top_charts.pack(fill="x", pady=(0, 20))
-        top_charts.grid_columnconfigure((0, 1, 2), weight=1)
+        top_cols = (0, 1, 2) if show_updates else (0, 1)
+        top_charts.grid_columnconfigure(top_cols, weight=1)
 
         # Tasks by department
-        chart1 = ChartCard(top_charts, "Tasks by Department", fig_width=4, fig_height=2.5)
+        chart1 = ChartCard(top_charts, "Tasks by Department", fig_width=4 if show_updates else 6, fig_height=2.5)
         chart1.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         dept_task_counts = Counter(t.department for t in tasks)
         if dept_task_counts:
@@ -76,19 +79,20 @@ class AnalyticsView(ctk.CTkFrame):
                              color=CHART_COLORS[:len(dept_task_counts)])
 
         # Goals by department
-        chart2 = ChartCard(top_charts, "Goals by Department", fig_width=4, fig_height=2.5)
+        chart2 = ChartCard(top_charts, "Goals by Department", fig_width=4 if show_updates else 6, fig_height=2.5)
         chart2.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
         dept_goal_counts = Counter(g.department for g in goals)
         if dept_goal_counts:
             chart2.pie_chart(list(dept_goal_counts.keys()), list(dept_goal_counts.values()))
 
-        # Updates by department
-        chart3 = ChartCard(top_charts, "Updates by Department", fig_width=4, fig_height=2.5)
-        chart3.grid(row=0, column=2, padx=5, pady=5, sticky="nsew")
-        dept_update_counts = Counter(u.department for u in updates if u.person.lower() != "boss")
-        if dept_update_counts:
-            chart3.bar_chart(list(dept_update_counts.keys()), list(dept_update_counts.values()),
-                             color=CHART_COLORS[:len(dept_update_counts)])
+        if show_updates:
+            # Updates by department
+            chart3 = ChartCard(top_charts, "Updates by Department", fig_width=4, fig_height=2.5)
+            chart3.grid(row=0, column=2, padx=5, pady=5, sticky="nsew")
+            dept_update_counts = Counter(u.department for u in updates if u.person.lower() != "boss")
+            if dept_update_counts:
+                chart3.bar_chart(list(dept_update_counts.keys()), list(dept_update_counts.values()),
+                                 color=CHART_COLORS[:len(dept_update_counts)])
 
         # --- Per-Person Comparison ---
         comparison_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
@@ -102,15 +106,20 @@ class AnalyticsView(ctk.CTkFrame):
         if person_names:
             task_vals = [sum(1 for t in tasks if t.person == n) for n in person_names]
             goal_vals = [sum(1 for g in goals if g.person == n) for n in person_names]
-            update_vals = [sum(1 for u in updates if u.person == n) for n in person_names]
 
             chart4.clear()
             import numpy as np
             x = np.arange(len(person_names))
-            w = 0.25
-            chart4.ax.bar(x - w, task_vals, w, label='Tasks', color=CHART_COLORS[0])
-            chart4.ax.bar(x, goal_vals, w, label='Goals', color=CHART_COLORS[1])
-            chart4.ax.bar(x + w, update_vals, w, label='Updates', color=CHART_COLORS[2])
+            if show_updates:
+                update_vals = [sum(1 for u in updates if u.person == n) for n in person_names]
+                w = 0.25
+                chart4.ax.bar(x - w, task_vals, w, label='Tasks', color=CHART_COLORS[0])
+                chart4.ax.bar(x, goal_vals, w, label='Goals', color=CHART_COLORS[1])
+                chart4.ax.bar(x + w, update_vals, w, label='Updates', color=CHART_COLORS[2])
+            else:
+                w = 0.35
+                chart4.ax.bar(x - w/2, task_vals, w, label='Tasks', color=CHART_COLORS[0])
+                chart4.ax.bar(x + w/2, goal_vals, w, label='Goals', color=CHART_COLORS[1])
             chart4.ax.set_xticks(x)
             chart4.ax.set_xticklabels(person_names, fontsize=8)
             chart4.ax.legend(fontsize=7, frameon=False, labelcolor=TEXT_MUTED)
@@ -143,12 +152,14 @@ class AnalyticsView(ctk.CTkFrame):
 
             kpi_frame = ctk.CTkFrame(dept_frame, fg_color="transparent")
             kpi_frame.pack(fill="x", padx=15, pady=(0, 15))
-            kpi_frame.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
+            kpi_cols = (0, 1, 2, 3) if show_updates else (0, 1, 2)
+            kpi_frame.grid_columnconfigure(kpi_cols, weight=1)
 
             KPICard(kpi_frame, "Team Size", str(len(dept_people))).grid(row=0, column=0, padx=5, sticky="ew")
             KPICard(kpi_frame, "Tasks", str(len(dept_tasks))).grid(row=0, column=1, padx=5, sticky="ew")
             KPICard(kpi_frame, "Goals", str(len(dept_goals))).grid(row=0, column=2, padx=5, sticky="ew")
-            KPICard(kpi_frame, "Updates", str(len(dept_updates))).grid(row=0, column=3, padx=5, sticky="ew")
+            if show_updates:
+                KPICard(kpi_frame, "Updates", str(len(dept_updates))).grid(row=0, column=3, padx=5, sticky="ew")
 
             members_text = ", ".join(p.name for p in dept_people)
             lbl_members = ctk.CTkLabel(dept_frame, text=f"Members: {members_text}", font=("Inter", 11), text_color=TEXT_MUTED)

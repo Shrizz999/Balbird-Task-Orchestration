@@ -4,6 +4,7 @@ from .components import (KPICard, ChartCard, ModernCardTable, BG_COLOR, TEXT_COL
                          FONT_H1, FONT_TITLE, CARD_BG, BORDER_COLOR, TEXT_MUTED,
                          CHART_COLORS)
 from data.repository import DataRepository
+import config
 
 
 class PeopleView(ctk.CTkFrame):
@@ -60,18 +61,24 @@ class PeopleView(ctk.CTkFrame):
         # KPIs
         self.kpi_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
         self.kpi_frame.pack(fill="x", padx=10, pady=(0, 15))
-        self.kpi_frame.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
+        show_updates = getattr(config, "SHOW_DAILY_UPDATES", False)
+        cols = 5 if show_updates else 4
+        self.kpi_frame.grid_columnconfigure(tuple(range(cols)), weight=1)
 
         self.kpi_tasks = KPICard(self.kpi_frame, title="Total Tasks", value="0")
         self.kpi_tasks.grid(row=0, column=0, padx=5, sticky="ew")
         self.kpi_goals = KPICard(self.kpi_frame, title="Goals", value="0")
         self.kpi_goals.grid(row=0, column=1, padx=5, sticky="ew")
-        self.kpi_updates = KPICard(self.kpi_frame, title="Updates", value="0")
-        self.kpi_updates.grid(row=0, column=2, padx=5, sticky="ew")
+        col_idx = 2
+        if show_updates:
+            self.kpi_updates = KPICard(self.kpi_frame, title="Updates", value="0")
+            self.kpi_updates.grid(row=0, column=col_idx, padx=5, sticky="ew")
+            col_idx += 1
         self.kpi_weekly = KPICard(self.kpi_frame, title="Weekly Goals", value="0")
-        self.kpi_weekly.grid(row=0, column=3, padx=5, sticky="ew")
+        self.kpi_weekly.grid(row=0, column=col_idx, padx=5, sticky="ew")
+        col_idx += 1
         self.kpi_sos = KPICard(self.kpi_frame, title="SOs Pushed", value="0")
-        self.kpi_sos.grid(row=0, column=4, padx=5, sticky="ew")
+        self.kpi_sos.grid(row=0, column=col_idx, padx=5, sticky="ew")
 
         # Charts row
         self.charts_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
@@ -99,16 +106,17 @@ class PeopleView(ctk.CTkFrame):
         self.tasks_table = ModernCardTable(self.main_area, columns=task_cols, height=180, double_click_callback=self._show_task_details)
         self.tasks_table.pack(fill="x", padx=10, pady=(0, 15))
 
-        # Updates table
-        lbl_updates = ctk.CTkLabel(self.main_area, text="Historical Updates (AI Reports)", font=FONT_TITLE, text_color=TEXT_COLOR)
-        lbl_updates.pack(anchor="w", padx=10, pady=(5, 5))
+        if show_updates:
+            # Updates table
+            self.lbl_updates = ctk.CTkLabel(self.main_area, text="Historical Updates (AI Reports)", font=FONT_TITLE, text_color=TEXT_COLOR)
+            self.lbl_updates.pack(anchor="w", padx=10, pady=(5, 5))
 
-        update_cols = [
-            {"id": "date", "title": "DATE", "weight": 1.0},
-            {"id": "report", "title": "REPORT", "weight": 6.0}
-        ]
-        self.updates_table = ModernCardTable(self.main_area, columns=update_cols, height=180, double_click_callback=self._show_update_details)
-        self.updates_table.pack(fill="x", padx=10, pady=(0, 15))
+            update_cols = [
+                {"id": "date", "title": "DATE", "weight": 1.0},
+                {"id": "report", "title": "REPORT", "weight": 6.0}
+            ]
+            self.updates_table = ModernCardTable(self.main_area, columns=update_cols, height=180, double_click_callback=self._show_update_details)
+            self.updates_table.pack(fill="x", padx=10, pady=(0, 15))
 
 
 
@@ -250,7 +258,8 @@ class PeopleView(ctk.CTkFrame):
 
         self.kpi_tasks.set_value(str(len(tasks)))
         self.kpi_goals.set_value(str(len(goals)))
-        self.kpi_updates.set_value(str(len(updates)))
+        if hasattr(self, 'kpi_updates'):
+            self.kpi_updates.set_value(str(len(updates)))
         self.kpi_weekly.set_value(str(len(weekly_goals)))
         self.kpi_sos.set_value(str(len(sales_orders)))
 
@@ -294,7 +303,8 @@ class PeopleView(ctk.CTkFrame):
             self.chart_status.draw()
 
         self.tasks_table.update_data([vars(t) for t in tasks])
-        self.updates_table.update_data([vars(u) for u in updates])
+        if hasattr(self, 'updates_table'):
+            self.updates_table.update_data([vars(u) for u in updates])
 
         self.so_table.update_data([vars(so) for so in sales_orders])
 
@@ -338,7 +348,8 @@ class PeopleView(ctk.CTkFrame):
         self.lbl_dept.configure(text="")
         self.kpi_tasks.set_value("0")
         self.kpi_goals.set_value("0")
-        self.kpi_updates.set_value("0")
+        if hasattr(self, 'kpi_updates'):
+            self.kpi_updates.set_value("0")
         self.kpi_weekly.set_value("0")
         self.kpi_sos.set_value("0")
         self.chart_timeline.clear()
@@ -348,5 +359,6 @@ class PeopleView(ctk.CTkFrame):
         self.chart_status.clear()
         self.chart_status.draw()
         self.tasks_table.update_data([])
-        self.updates_table.update_data([])
+        if hasattr(self, 'updates_table'):
+            self.updates_table.update_data([])
         self.so_table.update_data([])

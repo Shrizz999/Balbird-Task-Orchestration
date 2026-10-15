@@ -50,13 +50,28 @@ new_llm_chain['parameters']['text'] = '={{ $json.raw_json }}'
 new_llm_chain['parameters']['messages']['messageValues'][0]['message'] = """=OUTPUT FORMAT:
 You MUST output a valid JSON. 
 You will be given a JSON with goals, e.g. {"goals": {"Shreyash": [{"goal": "...", "deadline": "..."}]}}.
-Return the EXACT same JSON structure, but for every goal object, add a "checklist" property which is an array of strings representing stepwise tasks generated based on Company SOPs.
+Return the EXACT same JSON structure, but for every goal object, add a "checklist" property containing an array of strings representing 3 to maximum 4 high-level milestones.
+
+CRITICAL HARD CONSTRAINTS (STRICTLY ENFORCED):
+1. HARD LENGTH LIMIT — STRICTLY 3 TO MAX 4 ITEMS:
+   - Every checklist MUST have a minimum of 3 and a MAXIMUM OF 4 items. NEVER exceed 4 items under any circumstances.
+   - Any output with 5 or more items is strictly FORBIDDEN.
+   - If a task is complex, you MUST merge/consolidate all intermediate actions into 3 or 4 major milestone phases.
+
+2. MAJOR MILESTONES ONLY — NO FILLER OR COMMON SENSE:
+   - Include ONLY core technical, operational, or deliverable stages (e.g., Phase 1: Planning/Design -> Phase 2: Execution/Machining -> Phase 3: Testing/QA -> Phase 4: Delivery/Sign-off).
+   - NEVER create items for routine communications, administrative hygiene, or common sense (e.g., DO NOT write "Follow up", "Send email", "Call client", "Check inbox", "Attend meeting", "Review notes", "Open software").
+
+3. CONCISE & ACTIONABLE:
+   - Start each item with a decisive action verb (e.g., "Draft", "Fabricate", "Validate", "Approve").
+   - Align with Company SOP procedures when relevant.
 
 CONTEXT:
 Company SOPs: {{ JSON.stringify($json.sops || []) }}
 
 IMPORTANT:
 - ONLY output the JSON. Do not output anything else.
+- Keep each "checklist" strictly between 3 and 4 items maximum.
 """
 
 # New OpenRouter

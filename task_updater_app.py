@@ -14,7 +14,10 @@ import sys
 import threading
 from tkinter import messagebox
 from PIL import Image
-from config import COLORS, FONTS, DEPARTMENTS
+import config
+from config import COLORS, FONTS, DEPARTMENTS, SHOW_MEETING_TRANSCRIPTS
+# UI Feature Flag: Controls Meeting Transcript visibility in Employee Portal.
+# To bring meeting transcript back, set SHOW_MEETING_TRANSCRIPTS = True in config.py (or override here: config.SHOW_MEETING_TRANSCRIPTS = True)
 
 # Adjust font sizes for task_updater_app
 FONTS = {
@@ -447,21 +450,26 @@ class TaskUpdaterApp(ctk.CTk):
         self._trigger_fetch(is_background=False)
 
     def _init_dashboard_containers(self):
-        """Builds static KPI bar and independent scrollable containers for tasks and extensions."""
+        """Builds static TO-DO section, KPI bar and independent scrollable containers for tasks and extensions."""
+        # 0. TO-DO Section (Action Required — Next Up, 3 tasks max)
+        self.todo_outer = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        self.todo_outer.pack(fill="x", pady=(0, 14))
+        self._init_todo_section()
+
         # 1. KPI Outer Frame (Static at the top — always visible!)
         self.kpi_outer = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.kpi_outer.pack(fill="x", pady=(0, 14))
         self.kpi_labels = {}
 
         cards_data = [
-            ("total",              "Total Tasks",      "-", "#F1F5F9", "#0F172A"),
-            ("active",             "Active",           "-", "#EFF6FF", "#1E3A8A"),
-            ("completed",          "Completed",        "-", "#ECFDF5", "#065F46"),
-            ("overdue",            "Overdue",          "-", "#FEF2F2", "#991B1B"),
-            ("due_today",          "Due Today",        "-", "#FFFBEB", "#92400E"),
-            ("due_this_week",      "Due This Week",    "-", "#F8FAFC", "#334155"),
-            ("high_priority",      "High / Urgent",    "-", "#FEF2F2", "#991B1B"),
-            ("pending_extensions", "Pending Ext.",     "-", "#F5F3FF", "#4C1D95"),
+            ("total",              "Total Tasks",      "-"),
+            ("active",             "Active",           "-"),
+            ("completed",          "Completed",        "-"),
+            ("overdue",            "Overdue",          "-"),
+            ("due_today",          "Due Today",        "-"),
+            ("due_this_week",      "Due This Week",    "-"),
+            ("high_priority",      "High / Urgent",    "-"),
+            ("pending_extensions", "Pending Ext.",     "-"),
         ]
 
         for row_idx in range(2):
@@ -474,18 +482,23 @@ class TaskUpdaterApp(ctk.CTk):
                 i = row_idx * 4 + col_idx
                 if i >= len(cards_data):
                     break
-                key, label, val_default, bg_color, txt_color = cards_data[i]
-                card = ctk.CTkFrame(row_frame, fg_color=bg_color,
+                key, label, val_default = cards_data[i]
+                card = ctk.CTkFrame(row_frame, fg_color=COLORS["card_bg"],
                                     corner_radius=10, border_width=1, border_color=COLORS["border"])
                 card.grid(row=0, column=col_idx, sticky="nsew", padx=6, pady=2)
 
+                # Blue accent at top edge
+                top_edge = ctk.CTkFrame(card, fg_color=COLORS["accent"], height=4, corner_radius=2)
+                top_edge.pack(fill="x", side="top", padx=0, pady=0)
+                top_edge.pack_propagate(False)
+
                 lbl_val = ctk.CTkLabel(card, text=val_default, font=(FONTS["header"][0], 22, "bold"),
-                                       text_color=txt_color, fg_color="transparent")
+                                       text_color=COLORS["text_main"], fg_color="transparent")
                 lbl_val.pack(anchor="w", padx=16, pady=(10, 0))
                 self.kpi_labels[key] = lbl_val
 
                 ctk.CTkLabel(card, text=label, font=FONTS["small"],
-                             text_color=txt_color, fg_color="transparent").pack(anchor="w", padx=16, pady=(2, 10))
+                             text_color=COLORS["text_dim"], fg_color="transparent").pack(anchor="w", padx=16, pady=(2, 10))
 
         # 2. Main Two-Column Frame (Fills all remaining vertical height)
         columns_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
@@ -723,10 +736,13 @@ class TaskUpdaterApp(ctk.CTk):
             pending_extensions=len(pending_ext),
         )
 
-        # 2. Update task cards in-place with diffing & smooth entrance animation
+        # 2. Update TO-DO section in-place (top 3 prioritized tasks)
+        self._update_todo_section(all_tasks, today)
+
+        # 3. Update task cards in-place with diffing & smooth entrance animation
         self._update_tasks_display(all_tasks, today)
 
-        # 3. Update extension request cards in-place
+        # 4. Update extension request cards in-place
         self._update_extension_display(ext_requests)
 
     def _update_kpi_section(self, **kpis):
@@ -745,6 +761,427 @@ class TaskUpdaterApp(ctk.CTk):
             lbl = self.kpi_labels.get(key)
             if lbl and lbl.winfo_exists() and lbl.cget("text") != val:
                 lbl.configure(text=val)
+
+    # ═════════════════════════════════════════════════════════════════════
+    # TO-DO Section (Next Up — Top 3 Industrial SLA Prioritized)
+    # ═════════════════════════════════════════════════════════════════════
+
+    def _init_todo_section(self):
+        """Builds static TO-DO (Next Up) container with 3 prioritized task slots."""
+        hdr_frame = ctk.CTkFrame(self.todo_outer, fg_color="transparent")
+        hdr_frame.pack(fill="x", pady=(0, 8))
+
+        hdr_left = ctk.CTkFrame(hdr_frame, fg_color="transparent")
+        hdr_left.pack(side="left")
+
+        ctk.CTkLabel(hdr_left, text="🎯 Action Required — Next Up",
+                     font=(FONTS["header"][0], 14, "bold"),
+                     text_color=COLORS["text_main"]).pack(side="left")
+
+        ctk.CTkLabel(hdr_left, text="• Top 3 prioritized by industrial SLA, deadlines & urgency",
+                     font=FONTS["small"], text_color=COLORS["text_dim"]).pack(side="left", padx=(8, 0))
+
+        hdr_right = ctk.CTkFrame(hdr_frame, fg_color="transparent")
+        hdr_right.pack(side="right")
+
+        self.lbl_todo_badge = ctk.CTkLabel(hdr_right, text="3 TASKS FOCUS",
+                                           font=("Segoe UI", 9, "bold"),
+                                           text_color="#1D4ED8", fg_color="#DBEAFE",
+                                           corner_radius=4, width=95, height=22)
+        self.lbl_todo_badge.pack(side="right")
+
+        # Cards Row: 3 side-by-side responsive slots
+        self.todo_cards_frame = ctk.CTkFrame(self.todo_outer, fg_color="transparent")
+        self.todo_cards_frame.pack(fill="x")
+        for c in range(3):
+            self.todo_cards_frame.grid_columnconfigure(c, weight=1, uniform="todo_col")
+
+        self._todo_slots = []
+        for slot_idx in range(3):
+            slot = self._create_todo_slot_widget(slot_idx)
+            self._todo_slots.append(slot)
+
+    def _create_todo_slot_widget(self, slot_idx):
+        """Constructs widget layout for a single TO-DO slot card."""
+        card = ctk.CTkFrame(self.todo_cards_frame, fg_color=COLORS["card_bg"],
+                            corner_radius=10, border_width=1, border_color=COLORS["border"])
+        card.grid(row=0, column=slot_idx, sticky="nsew", padx=6, pady=2)
+
+        # Blue accent top edge (matching KPI style)
+        top_edge = ctk.CTkFrame(card, fg_color=COLORS["accent"], height=4, corner_radius=2)
+        top_edge.pack(fill="x", side="top", padx=0, pady=0)
+        top_edge.pack_propagate(False)
+
+        body = ctk.CTkFrame(card, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=14, pady=10)
+
+        # Top row: Rank badge + ID on left, Priority + Due date on right
+        top_row = ctk.CTkFrame(body, fg_color="transparent")
+        top_row.pack(fill="x", pady=(0, 4))
+
+        left_meta = ctk.CTkFrame(top_row, fg_color="transparent")
+        left_meta.pack(side="left")
+
+        lbl_rank = ctk.CTkLabel(left_meta, text=f"#{slot_idx + 1} PRIORITY",
+                                font=("Segoe UI", 9, "bold"),
+                                text_color="#1D4ED8", fg_color="#EFF6FF",
+                                corner_radius=4, width=76, height=20)
+        lbl_rank.pack(side="left", padx=(0, 6))
+
+        lbl_id = ctk.CTkLabel(left_meta, text="", font=FONTS["small"], text_color=COLORS["text_dim"])
+        lbl_id.pack(side="left")
+
+        right_meta = ctk.CTkFrame(top_row, fg_color="transparent")
+        right_meta.pack(side="right")
+
+        lbl_prio = ctk.CTkLabel(right_meta, text="", font=("Segoe UI", 9, "bold"),
+                                text_color=COLORS["text_dim"])
+        lbl_prio.pack(side="left", padx=(0, 6))
+
+        lbl_dl = ctk.CTkLabel(right_meta, text="", font=FONTS["small"], text_color=COLORS["text_dim"])
+        lbl_dl.pack(side="left")
+
+        # Middle: Description
+        lbl_desc = ctk.CTkLabel(body, text="Loading task...", font=("Segoe UI", 12, "bold"),
+                                text_color=COLORS["text_main"], justify="left", anchor="nw", wraplength=280)
+        lbl_desc.pack(fill="x", anchor="w", pady=(2, 2))
+
+        # Checklist info / meta
+        lbl_meta = ctk.CTkLabel(body, text="", font=FONTS["small"], text_color=COLORS["text_dim"], anchor="w")
+        lbl_meta.pack(fill="x", anchor="w", pady=(0, 6))
+
+        # Bottom: Actions frame with combobox, update button, and view button
+        actions_row = ctk.CTkFrame(body, fg_color="transparent")
+        actions_row.pack(fill="x", pady=(2, 0))
+
+        status_var = ctk.StringVar(value="Status...")
+        status_combo = ModernComboBox(actions_row, values=["Completed", "Delayed"],
+                                      variable=status_var, width=115, height=30,
+                                      font=FONTS["small"], dropdown_font=FONTS["small"],
+                                      corner_radius=6)
+        status_combo.pack(side="left", padx=(0, 6))
+
+        btn_action = ctk.CTkButton(actions_row, text="Update", width=75, height=30,
+                                   font=FONTS["small"], corner_radius=6,
+                                   fg_color=COLORS["accent"], text_color="#FFFFFF",
+                                   hover_color=COLORS["accent_hover"])
+        btn_action.pack(side="left", padx=(0, 6))
+
+        btn_view = ctk.CTkButton(actions_row, text="View", width=50, height=30,
+                                 font=FONTS["small"], corner_radius=6,
+                                 fg_color="transparent", border_width=1,
+                                 border_color=COLORS["border"], text_color=COLORS["text_main"],
+                                 hover_color=COLORS["bg"])
+        btn_view.pack(side="left")
+
+        # Dynamic wraplength on resize
+        def on_body_configure(event, l_desc=lbl_desc):
+            try:
+                new_w = max(180, event.width - 8)
+                l_desc.configure(wraplength=new_w)
+            except Exception:
+                pass
+        body.bind("<Configure>", on_body_configure)
+
+        return {
+            "slot_idx": slot_idx,
+            "card": card,
+            "top_edge": top_edge,
+            "body": body,
+            "lbl_rank": lbl_rank,
+            "lbl_id": lbl_id,
+            "lbl_prio": lbl_prio,
+            "lbl_dl": lbl_dl,
+            "lbl_desc": lbl_desc,
+            "lbl_meta": lbl_meta,
+            "actions_row": actions_row,
+            "status_combo": status_combo,
+            "status_var": status_var,
+            "btn_action": btn_action,
+            "btn_view": btn_view,
+            "current_task": None,
+            "is_animating": False,
+        }
+
+    def _get_prioritized_todo_tasks(self, all_tasks, today):
+        """Returns incomplete tasks sorted by industrial SLA standards (SLA breach > urgency > priority > age)."""
+        active_tasks = [t for t in all_tasks if str(getattr(t, "status", "")).strip().lower() not in ("completed", "done")]
+
+        prio_order = {"urgent": 0, "high": 1, "medium": 2, "normal": 2, "low": 3}
+        far_future = datetime(2099, 12, 31).date()
+
+        def score_task(t):
+            prio = prio_order.get(str(getattr(t, "priority", "")).strip().lower(), 2)
+            d = getattr(t, "_effective_deadline_date", None)
+            assigned = _parse_deadline(getattr(t, "date", "")) or far_future
+
+            if d is not None:
+                if d < today:
+                    # Tier 0: Overdue (SLA breach). Sort by priority first, then longest overdue first
+                    overdue_days = (today - d).days
+                    return (0, prio, -overdue_days)
+                elif d == today:
+                    # Tier 1: Due Today (imminent SLA risk)
+                    return (1, prio, 0)
+                else:
+                    # Tier 2: Future deadlines. Earliest deadline date first, then priority
+                    return (2, (d - today).days, prio)
+            else:
+                # Tier 3: No deadline specified. Priority first, then oldest assigned date
+                return (3, prio, (assigned - datetime(1970, 1, 1).date()).days)
+
+        active_tasks.sort(key=score_task)
+        return active_tasks
+
+    def _update_todo_section(self, all_tasks, today):
+        """Updates the top 3 TO-DO slots from active tasks using industrial SLA scoring."""
+        active_tasks = self._get_prioritized_todo_tasks(all_tasks, today)
+
+        # Update header badge
+        num_active = len(active_tasks)
+        if num_active >= 3:
+            self.lbl_todo_badge.configure(text="3 TASKS FOCUS", text_color="#1D4ED8", fg_color="#DBEAFE")
+        elif num_active == 2:
+            self.lbl_todo_badge.configure(text="2 TASKS FOCUS", text_color="#1D4ED8", fg_color="#DBEAFE")
+        elif num_active == 1:
+            self.lbl_todo_badge.configure(text="1 TASK FOCUS", text_color="#1D4ED8", fg_color="#DBEAFE")
+        else:
+            self.lbl_todo_badge.configure(text="0 TASKS PENDING", text_color="#15803D", fg_color="#DCFCE7")
+
+        for idx in range(3):
+            slot = self._todo_slots[idx]
+            if slot.get("is_animating"):
+                continue
+
+            old_task = slot.get("current_task")
+            if idx < len(active_tasks):
+                task = active_tasks[idx]
+                is_changed = (old_task is None or old_task.task_id != task.task_id) and not self._is_initial_load
+                self._populate_todo_slot(idx, task, idx + 1, today, is_new=is_changed)
+            else:
+                self._set_todo_slot_empty(idx, idx + 1)
+
+    def _populate_todo_slot(self, slot_idx, task, rank_num, today, is_new=False):
+        """Populates a slot with task details and binds all interactive controls."""
+        slot = self._todo_slots[slot_idx]
+        slot["current_task"] = task
+        card = slot["card"]
+        top_edge = slot["top_edge"]
+
+        # Double click to view full details
+        def on_double_click(event=None, tk=task):
+            self.show_task_details_dialog(tk)
+
+        for w in (card, slot["body"], slot["lbl_desc"], slot["lbl_meta"], slot["lbl_id"]):
+            w.bind("<Double-1>", on_double_click)
+
+        # Rank pill badge
+        rank_colors = [
+            ("#1D4ED8", "#EFF6FF", "#1 PRIORITY"),
+            ("#2563EB", "#F1F5F9", "#2 PRIORITY"),
+            ("#475569", "#F8FAFC", "#3 PRIORITY"),
+        ]
+        rc = rank_colors[min(slot_idx, len(rank_colors) - 1)]
+        slot["lbl_rank"].configure(text=rc[2], text_color=rc[0], fg_color=rc[1])
+
+        # Task ID
+        short_id = str(task.task_id)[-4:] if getattr(task, 'task_id', None) else ""
+        slot["lbl_id"].configure(text=f"[#{short_id}]" if short_id else "")
+
+        # Priority
+        prio_str = str(task.priority).strip().upper()
+        prio_color = COLORS["error"] if task.priority.lower() in ("high", "urgent") else (
+            COLORS["warning"] if task.priority.lower() in ("medium", "normal") else COLORS["text_dim"]
+        )
+        slot["lbl_prio"].configure(text=prio_str, text_color=prio_color)
+
+        # Due Date / Overdue badge
+        eff_dl = getattr(task, "_effective_deadline", task.deadline)
+        dl_str = format_date(eff_dl)
+        dl_date = getattr(task, "_effective_deadline_date", None)
+        if dl_date and dl_date < today and task.status.lower() not in ("completed", "done"):
+            overdue_days = (today - dl_date).days
+            slot["lbl_dl"].configure(text=f"⚠ Overdue ({overdue_days}d)", text_color=COLORS["error"], font=("Segoe UI", 9, "bold"))
+        elif dl_date and dl_date == today:
+            slot["lbl_dl"].configure(text="⏰ Due Today", text_color="#D97706", font=("Segoe UI", 9, "bold"))
+        else:
+            slot["lbl_dl"].configure(text=f"Due: {dl_str}", text_color=COLORS["text_dim"], font=FONTS["small"])
+
+        # Description (compact display to ensure uniform height)
+        desc_text = str(getattr(task, "description", "") or getattr(task, "task", "") or "")
+        short_desc = desc_text if len(desc_text) <= 110 else desc_text[:107] + "..."
+        slot["lbl_desc"].configure(text=short_desc, text_color=COLORS["text_main"])
+
+        # Checklist or subtext
+        has_checklist = bool(getattr(task, 'checklist', None))
+        if has_checklist:
+            total_items = len(task.checklist)
+            done_items = sum(
+                1 for item in task.checklist
+                if (isinstance(item, dict) and item.get("completed")) or
+                   (isinstance(item, str) and item.startswith("[x]"))
+            )
+            slot["lbl_meta"].configure(text=f"☑ Checklist: {done_items}/{total_items} completed",
+                                       text_color=COLORS["accent"] if done_items < total_items else COLORS["success"])
+        else:
+            assigned_by = getattr(task, "assigned_by", "")
+            slot["lbl_meta"].configure(text=f"Assigned by: {assigned_by}" if assigned_by else "",
+                                       text_color=COLORS["text_dim"])
+
+        # Ensure actions row is visible
+        slot["actions_row"].pack(fill="x", pady=(2, 0))
+
+        # Combobox options
+        combo_values = ["Completed", "Delayed", "Update"] if has_checklist else ["Completed", "Delayed"]
+        slot["status_combo"].configure(values=combo_values)
+
+        # Restore or set selection
+        initial_val = self._user_dropdown_selections.get(task.task_id, "Status...")
+        slot["status_var"].set(initial_val)
+
+        def on_todo_combo(val, t_id=task.task_id):
+            self._user_dropdown_selections[t_id] = val
+        slot["status_combo"].configure(command=on_todo_combo)
+
+        # Button callbacks
+        slot["btn_action"].configure(state="normal", text="Update",
+                                     command=lambda s_idx=slot_idx, t=task, c=slot["status_combo"], b=slot["btn_action"]:
+                                     self._handle_todo_action(s_idx, t, c, b))
+
+        slot["btn_view"].configure(state="normal", text="View",
+                                   command=lambda t=task: self.show_task_details_dialog(t))
+
+        # If newly arrived, run entrance animation
+        if is_new:
+            self._animate_todo_card_entrance(card, top_edge)
+        else:
+            card.configure(fg_color=COLORS["card_bg"], border_color=COLORS["border"], border_width=1)
+            top_edge.configure(fg_color=COLORS["accent"])
+
+    def _set_todo_slot_empty(self, slot_idx, rank_num):
+        """Sets a slot to clean placeholder state when no task is pending."""
+        slot = self._todo_slots[slot_idx]
+        slot["current_task"] = None
+        card = slot["card"]
+        top_edge = slot["top_edge"]
+
+        top_edge.configure(fg_color="#CBD5E1")
+        slot["lbl_rank"].configure(text=f"#{rank_num} CLEAR", text_color="#94A3B8", fg_color="#F1F5F9")
+        slot["lbl_id"].configure(text="")
+        slot["lbl_prio"].configure(text="")
+        slot["lbl_dl"].configure(text="")
+        slot["lbl_desc"].configure(text="All caught up!", text_color=COLORS["text_dim"])
+        slot["lbl_meta"].configure(text="No pending task in this slot", text_color="#94A3B8")
+        slot["actions_row"].pack_forget()
+        card.configure(fg_color=COLORS["card_bg"], border_color=COLORS["border"], border_width=1)
+
+    def _handle_todo_action(self, slot_idx, task, combo, btn_action):
+        """Dispatches button actions from a TO-DO card slot."""
+        val = combo.get()
+        if not val or val == "Status...":
+            return
+
+        has_checklist = bool(getattr(task, 'checklist', None))
+        if val == "Update":
+            if has_checklist:
+                self.show_task_details_dialog(task, checklist_only=True)
+            return
+        elif val == "Delayed":
+            dummy_var = ctk.StringVar(value=task.status)
+            self.prompt_extension_request(task, dummy_var)
+            return
+        elif val == "Completed":
+            if has_checklist:
+                all_completed = True
+                for item in task.checklist:
+                    if isinstance(item, dict) and not item.get("completed"):
+                        all_completed = False
+                    elif isinstance(item, str) and not item.startswith("[x]"):
+                        all_completed = False
+                if not all_completed:
+                    messagebox.showwarning("Incomplete Checklist",
+                                           "You cannot mark this task as complete until all checklist items are ticked.\n"
+                                           "Choose 'Update' from dropdown or click 'View' to complete checklist items.")
+                    return
+
+            self._animate_todo_completion_and_replace(slot_idx, task)
+
+    def _animate_todo_completion_and_replace(self, slot_idx, task):
+        """Animates task completion with an emerald flash and smoothly replaces it with the next prioritized task."""
+        slot = self._todo_slots[slot_idx]
+        slot["is_animating"] = True
+        card = slot["card"]
+        top_edge = slot["top_edge"]
+        btn_action = slot["btn_action"]
+        btn_view = slot["btn_view"]
+
+        # Step 1: Green completion highlight & disable controls
+        btn_action.configure(state="disabled", text="✓ Done")
+        btn_view.configure(state="disabled")
+        card.configure(fg_color="#DCFCE7", border_color="#16A34A", border_width=2)
+        top_edge.configure(fg_color="#16A34A")
+        slot["lbl_rank"].configure(text="✓ COMPLETED", text_color="#15803D", fg_color="#BBF7D0")
+
+        # Step 2: Trigger inline update backend sync with non-blocking modal
+        self.do_inline_update(task, "Completed", btn_action, skip_modal=True)
+
+        # Step 3: After a 280ms celebration pause, replace card with the next task smoothly
+        def do_replace():
+            today = datetime.now().date()
+            active_tasks = self._get_prioritized_todo_tasks(self.current_tasks, today)
+
+            for i in range(3):
+                s = self._todo_slots[i]
+                old_t = s.get("current_task")
+                if i < len(active_tasks):
+                    new_t = active_tasks[i]
+                    is_changed = (old_t is None or old_t.task_id != new_t.task_id or i == slot_idx)
+                    self._populate_todo_slot(i, new_t, i + 1, today, is_new=is_changed)
+                else:
+                    self._set_todo_slot_empty(i, i + 1)
+
+            slot["is_animating"] = False
+
+            # Update KPI labels for active & completed
+            active_cnt = len([t for t in self.current_tasks if t.status.lower() not in ("completed", "done")])
+            comp_cnt = len([t for t in self.current_tasks if t.status.lower() in ("completed", "done")])
+            if "active" in self.kpi_labels and self.kpi_labels["active"].winfo_exists():
+                self.kpi_labels["active"].configure(text=str(active_cnt))
+            if "completed" in self.kpi_labels and self.kpi_labels["completed"].winfo_exists():
+                self.kpi_labels["completed"].configure(text=str(comp_cnt))
+
+        self.after(280, do_replace)
+
+    def _animate_todo_card_entrance(self, card, top_edge):
+        """Animates a TO-DO card with a luminous blue highlight fade and smooth quadratic easing."""
+        start_bg = "#EFF6FF"
+        start_border = "#3B82F6"
+        end_bg = COLORS["card_bg"]
+        end_border = COLORS["border"]
+
+        card.configure(fg_color=start_bg, border_color=start_border, border_width=2)
+        top_edge.configure(fg_color=COLORS["accent"])
+
+        def step_color(step=0, total_steps=16):
+            if not card.winfo_exists():
+                return
+            factor = step / total_steps
+            eased = 1 - (1 - factor) ** 2  # smooth ease-out
+            bg = _interpolate_color(start_bg, end_bg, eased)
+            border = _interpolate_color(start_border, end_border, eased)
+            try:
+                card.configure(fg_color=bg, border_color=border)
+            except Exception:
+                pass
+            if step < total_steps:
+                self.after(30, lambda: step_color(step + 1, total_steps))
+            else:
+                try:
+                    card.configure(fg_color=end_bg, border_color=end_border, border_width=1)
+                except Exception:
+                    pass
+
+        self.after(40, step_color)
 
     def _on_sort_param_click(self, param):
         """Click once -> ascending (↑). Click same again -> descending (↓) with reversed arrow."""
@@ -1193,9 +1630,10 @@ class TaskUpdaterApp(ctk.CTk):
                 ("Priority", task.priority),
                 ("Status", task.status),
                 ("Reason", task.reason),
-                ("Source", task.source),
-                ("Last Updated", task.last_updated),
             ])
+            if getattr(config, "SHOW_MEETING_TRANSCRIPTS", False) or (task.source and "transcript" not in str(task.source).lower()):
+                details.append(("Source", task.source))
+            details.append(("Last Updated", task.last_updated))
     
             for label, value in details:
                 ctk.CTkLabel(scroll, text=f"{label}:", font=FONTS["body"],
@@ -1632,7 +2070,7 @@ class TaskUpdaterApp(ctk.CTk):
 
     # ── Submit Updates ───────────────────────────────────────────────────
 
-    def do_inline_update(self, task, new_status, btn_widget):
+    def do_inline_update(self, task, new_status, btn_widget, skip_modal=False):
         if not new_status or new_status == "Status...":
             return
             
@@ -1680,7 +2118,8 @@ class TaskUpdaterApp(ctk.CTk):
 
             def on_update_success(success):
                 if success:
-                    messagebox.showinfo("Success", f"Task {task.task_id} updated to {new_status}.")
+                    if not skip_modal:
+                        messagebox.showinfo("Success", f"Task {task.task_id} updated to {new_status}.")
                     recent_updates = load_recent_updates()
                     recent_updates[task.task_id] = {
                         "status": new_status,

@@ -2,6 +2,7 @@ import csv
 import re
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
+import config
 from .components import FilterBar, ModernCardTable, BG_COLOR, TEXT_COLOR, FONT_H1
 from data.repository import DataRepository
 
@@ -228,6 +229,8 @@ class TasksView(ctk.CTkFrame):
                     if is_checked: chk.select()
                     chk.pack(anchor="w", pady=2)
             else:
+                if not getattr(config, "SHOW_MEETING_TRANSCRIPTS", False) and key == "source" and "transcript" in str(value).lower():
+                    continue
                 formatted_key = key.replace("_", " ").title()
                 lbl = ctk.CTkLabel(frame, text=f"{formatted_key}: {value}", font=("Inter", 12))
                 lbl.pack(anchor="w", pady=2)

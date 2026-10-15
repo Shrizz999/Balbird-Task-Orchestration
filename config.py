@@ -12,6 +12,16 @@ N8N_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/form/bbdf4375-d5e3-47b0-ae
 N8N_MONTHLY_UPDATES_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/monthly-goals-update"
 N8N_EXTENSION_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/extension-requests"
 
+# ==============================================================================
+# UI FEATURE FLAGS
+# ==============================================================================
+# Controls visibility of Meeting Transcript options and UI elements across apps.
+# Set to True to re-enable Meeting Transcript in both Admin Dashboard & Employee Portal.
+SHOW_MEETING_TRANSCRIPTS = False
+# Controls visibility of Daily Updates (AI reports derived from transcripts).
+# Set to True to re-enable Daily Updates section and charts in Admin Dashboard.
+SHOW_DAILY_UPDATES = False
+
 # Workspace root directory — works both in dev and in frozen PyInstaller exe
 if getattr(sys, 'frozen', False):
     BASE_DIR = Path(sys.executable).resolve().parent
