@@ -16,6 +16,19 @@ from .extension_requests import ExtensionRequestsView
 from .add_employee import AddEmployeeView
 from .components import BG_COLOR, CARD_BG, BORDER_COLOR, TEXT_COLOR, TEXT_MUTED, ACCENT_COLOR
 
+if getattr(sys, 'frozen', False):
+    _project_root = os.path.dirname(sys.executable)
+else:
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from services.notifier import (
+    notify_admin_task_completed,
+    notify_admin_extension_requested,
+    notify_admin_task_escalation,
+)
+
 REFRESH_INTERVAL_MS = 30_000  # Auto-refresh every 30 seconds
 
 def _resolve_resource_path(filename):
@@ -230,6 +243,60 @@ class MainWindow(ctk.CTk):
                 view._needs_refresh = True
 
         self.btn_refresh.configure(text="↻ Refresh Data", state="normal")
+
+        # Check and dispatch native Windows Action Center notifications for Admin/HOD
+        self._check_admin_notifications()
+
+    def _check_admin_notifications(self):
+        """Dispatches native Windows Action Center notifications for completed tasks, new extension requests, and escalations."""
+        try:
+            tasks = self.repository.get_tasks() or []
+        except Exception:
+            tasks = []
+        try:
+            from services.extension_store import get_all_requests
+            ext_requests = get_all_requests() or []
+        except Exception:
+            ext_requests = []
+
+        if not hasattr(self, "_known_admin_task_statuses"):
+            # Seed on initial load so we don't spam toasts on startup
+            self._known_admin_task_statuses = {str(getattr(t, "task_id", "")): str(getattr(t, "status", "")).lower() for t in tasks}
+            self._known_admin_ext_ids = {str(req.get("id") or req.get("task_id", "")) for req in ext_requests}
+            return
+
+        # 1. Alert HOD if an employee completed a task
+        for t in tasks:
+            t_id = str(getattr(t, "task_id", ""))
+            curr_status = str(getattr(t, "status", "")).lower()
+            prev_status = self._known_admin_task_statuses.get(t_id)
+            if prev_status and prev_status not in ("completed", "done") and curr_status in ("completed", "done"):
+                notify_admin_task_completed(t)
+            self._known_admin_task_statuses[t_id] = curr_status
+
+        # 2. Alert HOD if a new extension request is submitted
+        current_ext_ids = set()
+        for req in ext_requests:
+            req_id = str(req.get("id") or req.get("task_id", ""))
+            current_ext_ids.add(req_id)
+            if req_id not in self._known_admin_ext_ids and str(req.get("status", "")).lower() == "pending":
+                notify_admin_extension_requested(req)
+        self._known_admin_ext_ids.update(current_ext_ids)
+
+        # 3. Alert HOD if a High/Urgent task becomes overdue
+        from datetime import datetime
+        today = datetime.now().date()
+        for t in tasks:
+            if str(getattr(t, "status", "")).lower() not in ("completed", "done"):
+                prio = str(getattr(t, "priority", "")).lower()
+                if prio in ("high", "urgent"):
+                    dl_str = getattr(t, "due_date", None) or getattr(t, "deadline", None)
+                    if dl_str:
+                        from .departments import _parse_date
+                        parsed = _parse_date(str(dl_str))
+                        if parsed and parsed.date() < today:
+                            overdue_days = (today - parsed.date()).days
+                            notify_admin_task_escalation(t, overdue_days)
 
     def _schedule_auto_refresh(self):
         def _tick():

@@ -11,6 +11,8 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 N8N_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/form/bbdf4375-d5e3-47b0-aef9-90a2e2050f22"
 N8N_MONTHLY_UPDATES_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/monthly-goals-update"
 N8N_EXTENSION_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/extension-requests"
+N8N_TASK_PROGRESS_WEBHOOK_URL = "https://n8n.srv1463077.hstgr.cloud/webhook/task-progress-update"
+
 
 # ==============================================================================
 # UI FEATURE FLAGS

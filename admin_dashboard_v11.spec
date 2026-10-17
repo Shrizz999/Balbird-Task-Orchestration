@@ -24,6 +24,8 @@ hiddenimports = [
     'services.supabase_client',
     'services.extension_store',
     'services.local_sync',
+    'services.notifier',
+    'winotify',
     'models',
     'models.data_models',
     'data',

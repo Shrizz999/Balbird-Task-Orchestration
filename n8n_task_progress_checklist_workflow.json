@@ -1,0 +1,294 @@
+{
+  "name": "Stauff - Task Progress & Checklist AI Evaluator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "task-progress-update",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "11111111-2222-3333-4444-555555555551",
+      "name": "Task Progress Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "task-progress-update"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nconst taskId = body.task_id || '';\nconst updateText = body.update_text || '';\nconst taskDescription = body.task_description || '';\nconst employeeName = body.employee_name || '';\nconst currentStatus = body.status || 'Pending';\nconst rawChecklist = body.current_checklist || [];\n\n// Normalize checklist to array of objects\nconst normalizedChecklist = [];\nif (Array.isArray(rawChecklist)) {\n  for (const item of rawChecklist) {\n    if (typeof item === 'string') {\n      const isChecked = item.trim().startsWith('[x]');\n      let text = item.trim();\n      if (text.startsWith('[x]') || text.startsWith('[ ]')) {\n        text = text.substring(3).trim();\n      }\n      normalizedChecklist.push({ text: text, completed: isChecked });\n    } else if (typeof item === 'object' && item !== null) {\n      normalizedChecklist.push({\n        text: item.text || item.step || item.goal || '',\n        completed: Boolean(item.completed)\n      });\n    }\n  }\n}\n\nreturn [{\n  json: {\n    task_id: taskId,\n    update_text: updateText,\n    task_description: taskDescription,\n    employee_name: employeeName,\n    current_status: currentStatus,\n    checklist: normalizedChecklist\n  }\n}];"
+      },
+      "id": "11111111-2222-3333-4444-555555555552",
+      "name": "Extract Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "tasks",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "task_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.task_id }}"
+            }
+          ]
+        }
+      },
+      "id": "11111111-2222-3333-4444-555555555553",
+      "name": "Fetch Task From Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        640,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputNode = $('Extract Input').first().json;\nlet dbTask = null;\ntry {\n  const dbItems = $input.all();\n  if (dbItems && dbItems.length > 0 && dbItems[0].json && dbItems[0].json.task_id) {\n    dbTask = dbItems[0].json;\n  }\n} catch (e) {}\n\nconst taskId = inputNode.task_id;\nconst updateText = inputNode.update_text;\nconst taskDescription = (dbTask && dbTask.description) ? dbTask.description : inputNode.task_description;\nconst employeeName = inputNode.employee_name;\nconst currentStatus = (dbTask && dbTask.status) ? dbTask.status : inputNode.current_status;\n\n// Prefer DB checklist if valid, otherwise payload checklist\nlet rawChecklist = (dbTask && dbTask.checklist && Array.isArray(dbTask.checklist) && dbTask.checklist.length > 0)\n  ? dbTask.checklist\n  : inputNode.checklist;\n\nconst checklistItems = [];\nif (Array.isArray(rawChecklist)) {\n  for (let i = 0; i < rawChecklist.length; i++) {\n    const item = rawChecklist[i];\n    if (typeof item === 'string') {\n      const isChecked = item.trim().startsWith('[x]');\n      let text = item.trim();\n      if (text.startsWith('[x]') || text.startsWith('[ ]')) {\n        text = text.substring(3).trim();\n      }\n      checklistItems.push({ index: i, text: text, completed: isChecked });\n    } else if (typeof item === 'object' && item !== null) {\n      checklistItems.push({\n        index: i,\n        text: item.text || item.step || item.goal || '',\n        completed: Boolean(item.completed)\n      });\n    }\n  }\n}\n\n// Build checklist summary for LLM\nlet checklistSummaryText = '';\nchecklistItems.forEach((item, idx) => {\n  const statusStr = item.completed ? '[ALREADY COMPLETED]' : '[PENDING]';\n  checklistSummaryText += `${idx + 1}. ${statusStr} ${item.text}\\n`;\n});\n\nconst prompt = `Evaluate the employee progress update for Task ${taskId} against its checklist.\\nTask: ${taskDescription}\\nChecklist Milestones:\\n${checklistSummaryText}\\n\\nEmployee Update:\\n\"${updateText}\"`;\n\nreturn [{\n  json: {\n    task_id: taskId,\n    task_description: taskDescription,\n    employee_name: employeeName,\n    current_status: currentStatus,\n    checklist_items: checklistItems,\n    checklist_summary: checklistSummaryText,\n    update_text: updateText,\n    llm_input_prompt: prompt\n  }\n}];"
+      },
+      "id": "11111111-2222-3333-4444-555555555554",
+      "name": "Prep Payload For LLM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.llm_input_prompt }}",
+        "messages": {
+          "messageValues": [
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=You are an expert AI task auditor evaluating an employee's progress report against an official stepwise task checklist.\n\nTASK DETAILS:\n- Task ID: {{ $json.task_id }}\n- Task Description: {{ $json.task_description }}\n\nEXISTING CHECKLIST MILESTONES:\n{{ $json.checklist_summary }}\n\nEMPLOYEE'S PROGRESS REPORT / UPDATE:\n\"{{ $json.update_text }}\"\n\nAUDITING & EVALUATION RULES:\n1. CAREFULLY COMPARE REPORT AGAINST CHECKLIST:\n   - Read the employee's progress report thoroughly.\n   - The employee may provide detailed, verbose, or extra context about what they did (e.g., phone calls, meetings, prep work, unrelated subtasks). Some of this information may NOT be in our checklist.\n   - IGNORE all extraneous activities that do not directly correspond to an existing checklist milestone. Do NOT add new checklist milestones.\n\n2. PRESERVE PREVIOUSLY COMPLETED STEPS:\n   - Any milestone marked [ALREADY COMPLETED] MUST REMAIN completed ([x]), unless the employee explicitly notes that they revoked, cancelled, or had to redo that specific step.\n\n3. ACCURATELY EVALUATE PENDING STEPS:\n   - For each pending milestone, verify if the employee's update text clearly confirms that this specific milestone was accomplished.\n   - If accomplished, mark it as completed: \"[x] <original step text>\".\n   - If not accomplished, still in progress, or unmentioned, keep it pending: \"[ ] <original step text>\".\n\n4. STRICT PRESERVATION OF STEP SEQUENCE & TEXT:\n   - Output checklist MUST contain the EXACT same number of items and in the EXACT same sequence as provided in the EXISTING CHECKLIST MILESTONES.\n   - Preserve the original wording of every milestone.\n\n5. COMPLETION STATUS:\n   - If ALL checklist milestones are marked as completed ([x]), set \"all_completed\": true.\n   - If any checklist milestone remains pending ([ ]), set \"all_completed\": false.\n\nOUTPUT FORMAT:\nYou MUST return ONLY a valid JSON object (no markdown code blocks, no text before or after):\n{\n  \"checklist\": [\n    \"[x] Step 1 text\",\n    \"[x] Step 2 text\",\n    \"[ ] Step 3 text\"\n  ],\n  \"all_completed\": false,\n  \"newly_completed_steps\": [\"Step 2 text\"],\n  \"still_pending_steps\": [\"Step 3 text\"],\n  \"explanation\": \"Brief summary of which steps were verified completed and which remain pending.\"\n}"
+            }
+          ]
+        }
+      },
+      "id": "11111111-2222-3333-4444-555555555555",
+      "name": "Checklist Evaluator Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openrouter/free",
+        "options": {}
+      },
+      "id": "11111111-2222-3333-4444-555555555556",
+      "name": "OpenRouter Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        500
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "f4CDg2qoRRQd4Na9",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = $input.first().json.text || '';\nconst prepData = $('Prep Payload For LLM').first().json;\nconst originalItems = prepData.checklist_items || [];\n\nlet cleanText = rawText.trim();\nconst firstBrace = cleanText.indexOf('{');\nconst lastBrace = cleanText.lastIndexOf('}');\nif (firstBrace !== -1 && lastBrace !== -1) {\n  cleanText = cleanText.substring(firstBrace, lastBrace + 1);\n}\n\nlet parsed = {};\ntry {\n  parsed = JSON.parse(cleanText);\n} catch (e) {\n  parsed = {\n    checklist: originalItems.map(it => (it.completed ? `[x] ${it.text}` : `[ ] ${it.text}`)),\n    all_completed: false,\n    newly_completed_steps: [],\n    still_pending_steps: originalItems.filter(it => !it.completed).map(it => it.text),\n    explanation: 'AI output could not be parsed; original checklist retained.'\n  };\n}\n\nlet outputChecklist = parsed.checklist || [];\nif (!Array.isArray(outputChecklist) || outputChecklist.length !== originalItems.length) {\n  outputChecklist = originalItems.map((it, idx) => {\n    const matched = Array.isArray(parsed.checklist) ? parsed.checklist.find(c => c.includes(it.text)) : null;\n    if (matched && matched.trim().startsWith('[x]')) {\n      return `[x] ${it.text}`;\n    }\n    return it.completed ? `[x] ${it.text}` : `[ ] ${it.text}`;\n  });\n}\n\noutputChecklist = outputChecklist.map((item, idx) => {\n  const origText = originalItems[idx] ? originalItems[idx].text : '';\n  let cleanItem = String(item).trim();\n  const isDone = cleanItem.startsWith('[x]');\n  if (cleanItem.startsWith('[x]') || cleanItem.startsWith('[ ]')) {\n    cleanItem = cleanItem.substring(3).trim();\n  }\n  const finalText = cleanItem || origText;\n  return isDone ? `[x] ${finalText}` : `[ ] ${finalText}`;\n});\n\nconst totalItems = outputChecklist.length;\nconst completedCount = outputChecklist.filter(item => item.startsWith('[x]')).length;\nconst allCompleted = (totalItems > 0 && completedCount === totalItems);\n\nlet newStatus = prepData.current_status;\nif (allCompleted) {\n  newStatus = 'Completed';\n} else if (newStatus !== 'Completed' && newStatus !== 'Delayed') {\n  newStatus = 'Active';\n}\n\nreturn [{\n  json: {\n    task_id: prepData.task_id,\n    checklist: outputChecklist,\n    status: newStatus,\n    all_completed: allCompleted,\n    completed_count: completedCount,\n    total_count: totalItems,\n    newly_completed_steps: parsed.newly_completed_steps || [],\n    still_pending_steps: parsed.still_pending_steps || [],\n    explanation: parsed.explanation || (allCompleted ? 'All milestones completed!' : `${completedCount} of ${totalItems} milestones completed.`),\n    last_updated: new Date().toISOString(),\n    updated_by: 'AI Progress Evaluator'\n  }\n}];"
+      },
+      "id": "11111111-2222-3333-4444-555555555557",
+      "name": "Process LLM Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "tasks",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "task_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.task_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "checklist",
+              "fieldValue": "={{ JSON.stringify($json.checklist) }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "last_updated",
+              "fieldValue": "={{ $json.last_updated }}"
+            },
+            {
+              "fieldId": "updated_by",
+              "fieldValue": "={{ $json.updated_by }}"
+            }
+          ]
+        }
+      },
+      "id": "11111111-2222-3333-4444-555555555558",
+      "name": "Update Task In Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "uqttQ6M3k0YVuIO3",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Process LLM Result').first().json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "11111111-2222-3333-4444-555555555559",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1780,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Task Progress Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Input": {
+      "main": [
+        [
+          {
+            "node": "Fetch Task From Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Task From Supabase": {
+      "main": [
+        [
+          {
+            "node": "Prep Payload For LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Payload For LLM": {
+      "main": [
+        [
+          {
+            "node": "Checklist Evaluator Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Checklist Evaluator Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checklist Evaluator Chain": {
+      "main": [
+        [
+          {
+            "node": "Process LLM Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process LLM Result": {
+      "main": [
+        [
+          {
+            "node": "Update Task In Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Task In Supabase": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

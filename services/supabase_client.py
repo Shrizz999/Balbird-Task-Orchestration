@@ -90,11 +90,15 @@ class SupabaseClient:
                         continue
         return tasks
 
-    def update_task_checklist(self, task_id: str, checklist: list) -> bool:
+    def update_task_checklist(self, task_id: str, checklist: list, status: str = None, updated_by: str = None) -> bool:
         if not SUPABASE_URL or not SUPABASE_KEY or "your-project" in SUPABASE_URL:
             return False
         url = f"{self.base_url}/tasks?task_id=eq.{task_id}"
         payload = {"checklist": checklist}
+        if status:
+            payload["status"] = status
+        if updated_by:
+            payload["updated_by"] = updated_by
         try:
             headers = self.headers.copy()
             headers["Prefer"] = "return=minimal"
@@ -104,6 +108,7 @@ class SupabaseClient:
         except Exception as e:
             print(f"Error updating checklist: {e}")
             return False
+
 
     def update_monthly_goal_checklist(self, goal_id: str, checklist: list) -> bool:
         if not SUPABASE_URL or not SUPABASE_KEY or "your-project" in SUPABASE_URL:

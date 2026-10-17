@@ -1,11 +1,13 @@
 import json
 import requests
-from config import N8N_WEBHOOK_URL, N8N_MONTHLY_UPDATES_WEBHOOK_URL, N8N_EXTENSION_WEBHOOK_URL
+from config import N8N_WEBHOOK_URL, N8N_MONTHLY_UPDATES_WEBHOOK_URL, N8N_EXTENSION_WEBHOOK_URL, N8N_TASK_PROGRESS_WEBHOOK_URL
 
 class N8nClient:
     def __init__(self, webhook_url: str = N8N_WEBHOOK_URL):
         self.webhook_url = webhook_url
         self.extension_webhook_url = N8N_EXTENSION_WEBHOOK_URL
+        self.task_progress_webhook_url = N8N_TASK_PROGRESS_WEBHOOK_URL
+
 
     def submit_daily_goals(self, goals_dict: dict) -> bool:
         """
@@ -77,6 +79,40 @@ class N8nClient:
         except Exception as e:
             raise Exception(f"Failed to submit extension decision: {str(e)}")
 
+
+    def submit_task_progress_update(
+        self,
+        task_id: str,
+        update_text: str,
+        current_checklist: list,
+        task_description: str = "",
+        employee_name: str = "",
+        current_status: str = "Pending"
+    ) -> dict:
+        """
+        Sends employee's progress description for a task to n8n to interpret against the checklist.
+        Returns the parsed response from n8n with updated checklist and status.
+        """
+        payload = {
+            "task_id": task_id,
+            "update_text": update_text,
+            "current_checklist": current_checklist or [],
+            "task_description": task_description or "",
+            "employee_name": employee_name or "",
+            "status": current_status or "Pending"
+        }
+        try:
+            resp = requests.post(self.task_progress_webhook_url, json=payload, timeout=60)
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, list) and len(data) > 0:
+                data = data[0]
+            if isinstance(data, dict):
+                data.setdefault("success", True)
+                return data
+            return {"success": True, "raw_response": data}
+        except Exception as e:
+            raise Exception(f"Failed to submit task progress to n8n: {str(e)}")
 
     def _send_to_n8n(self, mode: str, payload: dict) -> bool:
         form_data = {

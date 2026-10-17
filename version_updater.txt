@@ -1,0 +1,36 @@
+# UTF-8
+#
+# Windows PE Version Information for Stauff Task Updater v14
+#
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(14, 0, 0, 0),
+    prodvers=(14, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+        StringTable(
+          '040904B0',
+          [
+            StringStruct('CompanyName', 'Balbird Industries'),
+            StringStruct('FileDescription', 'Stauff Employee Task Updater'),
+            StringStruct('FileVersion', '14.0.0.0'),
+            StringStruct('InternalName', 'Stauff Task Updater'),
+            StringStruct('LegalCopyright', 'Copyright (C) 2026 Balbird Industries. All rights reserved.'),
+            StringStruct('OriginalFilename', 'Stauff Task Updater v14.exe'),
+            StringStruct('ProductName', 'Balbird Task Orchestrator'),
+            StringStruct('ProductVersion', '14.0.0.0')
+          ]
+        )
+      ]
+    ),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
